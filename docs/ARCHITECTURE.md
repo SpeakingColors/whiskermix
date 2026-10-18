@@ -2,7 +2,7 @@
 
 ## Layers
 1. **UI**: JUCE + cat-ui. Draws through `catui::RenderGate` so meters stop when the window is hidden.
-2. **Mixer model**: channels, buses, routing matrix, snapshots. Pure C++, no hardware calls.
+2. **Mixer model** (`src/mixer/`): channels, buses, mute/solo, routing matrix, snapshots, undo/redo and JSON workspace files. Pure C++, no hardware calls. Run all tests with `sh tests/run.sh`.
 3. **Backends** (pluggable):
    - Digiface USB (RME): audio and clock are handled by the Linux kernel. Matrix mixer, output gain and meters need a vendor protocol that is **not yet known**.
    - MIDI (ALSA/JACK/PipeWire): hub, filters, Pulse 16 SysEx.
