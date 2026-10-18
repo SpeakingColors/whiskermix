@@ -50,6 +50,7 @@ struct ReverbParams {
     float preDelayMs = 0.0f;
     float size = 1.0f;       // hall/room scale
     float modDepth = 0.5f;   // 0..1
+    float color = 0.0f;      // -1 dark .. +1 bright (Velvet only)
 };
 
 class PlateReverb {
@@ -213,8 +214,8 @@ struct ReverbSettings {
 // Starting point for a "big synth reverb" character; to be tuned by ear against reference recordings.
 class VelvetReverb {
 public:
-    void prepare(float sr) { a_.prepare(sr); b_.prepare(sr); }
-    void reset() { a_.reset(); b_.reset(); }
+    void prepare(float sr) { a_.prepare(sr); b_.prepare(sr); k_ = 1.0f - std::exp(-6.2831853f * 1200.0f / sr); reset(); }
+    void reset() { a_.reset(); b_.reset(); loL_ = loR_ = 0; }
     void process(float inL, float inR, float& outL, float& outR, const ReverbParams& p) {
         ReverbParams pa = p, pb = p;
         pb.size = p.size * 1.37f; pb.modDepth = std::min(1.0f, p.modDepth * 1.5f + 0.15f);
@@ -222,9 +223,15 @@ public:
         float l1, r1, l2, r2;
         a_.process(inL, inR, l1, r1, pa); b_.process(inR, inL, l2, r2, pb);   // second network gets swapped channels: wider
         outL = 0.6f * (l1 + l2); outR = 0.6f * (r1 + r2);
+        // Coloration: tilt around 1.2 kHz, dark (-1) to bright (+1)
+        const float t = std::max(-1.0f, std::min(1.0f, p.color)) * 0.7f;
+        loL_ += k_ * (outL - loL_); loR_ += k_ * (outR - loR_);
+        outL = loL_ * (1.0f - t) + (outL - loL_) * (1.0f + t);
+        outR = loR_ * (1.0f - t) + (outR - loR_) * (1.0f + t);
     }
 private:
     HallReverb a_, b_;
+    float k_ = 0.1f, loL_ = 0, loR_ = 0;
 };
 
 // One reverb unit with all types. Shimmer = tail is pitch shifted and fed back into the reverb input.

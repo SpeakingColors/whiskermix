@@ -67,6 +67,18 @@ int main() {
         std::vector<float> second(out.begin() + 24000 + 3000, out.begin() + 24000 + 4800);   // second echo window
         { float pf2 = peakFreq(second, 300, 1500, sr); CHECK(pf2 > 800 && pf2 < 950); }
     }
+    // 5. Velvet colour: bright setting has more high-frequency content in the tail than dark
+    {
+        float hf[2];
+        for (int k = 0; k < 2; ++k) {
+            ReverbUnit r; r.prepare(sr); ReverbSettings s; s.type = ReverbType::Velvet; s.mix = 1.0f; s.p.color = k ? 1.0f : -1.0f;
+            float l, rr, prev = 0, d = 0, tot = 0; std::srand(3);
+            for (int i = 0; i < 48000; ++i) { float n = i < 2400 ? (std::rand() / float(RAND_MAX) - 0.5f) : 0.0f; r.process(n, n, l, rr, s);
+                if (i > 6000) { d += std::fabs(l - prev); tot += std::fabs(l); } prev = l; }
+            hf[k] = d / (tot + 1e-9f);
+        }
+        CHECK(hf[1] > hf[0] * 1.3f);
+    }
     if (!fails) std::puts("reverb_test: all passed");
     return fails ? 1 : 0;
 }

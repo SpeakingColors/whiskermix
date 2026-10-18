@@ -21,6 +21,7 @@ public:
         l.add(floatParam("predelay", "Pre-delay (ms)", 0, 250, 20, 40));
         l.add(floatParam("size", "Size", 0.5f, 1.6f, 1.0f));
         l.add(floatParam("mod", "Modulation", 0, 1, 0.5f));
+        l.add(floatParam("color", "Velvet colour", -1, 1, 0.0f));
         l.add(floatParam("shift", "Shimmer (semitones)", -12, 12, 12));
         l.add(floatParam("shimmer", "Shimmer amount", 0, 1, 0.5f));
         l.add(floatParam("mix", "Mix", 0, 1, 0.35f));
@@ -36,7 +37,7 @@ public:
         s.type = wm::engine::ReverbType(int(*apvts.getRawParameterValue("type")));
         s.p.decay = *apvts.getRawParameterValue("decay"); s.p.dampHz = *apvts.getRawParameterValue("damp");
         s.p.preDelayMs = *apvts.getRawParameterValue("predelay"); s.p.size = *apvts.getRawParameterValue("size");
-        s.p.modDepth = *apvts.getRawParameterValue("mod"); s.shimmerSemis = *apvts.getRawParameterValue("shift");
+        s.p.modDepth = *apvts.getRawParameterValue("mod"); s.p.color = *apvts.getRawParameterValue("color"); s.shimmerSemis = *apvts.getRawParameterValue("shift");
         s.shimmerAmount = *apvts.getRawParameterValue("shimmer"); s.mix = *apvts.getRawParameterValue("mix");
         return s;
     }

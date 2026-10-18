@@ -69,6 +69,7 @@ public:
         add("Pre-delay ms", 0, 250, 1, [](wm::mixer::Bus& b) -> float& { return b.reverb.p.preDelayMs; });
         add("Size", 0.5, 1.6, 0.01, [](wm::mixer::Bus& b) -> float& { return b.reverb.p.size; });
         add("Modulation", 0, 1, 0.01, [](wm::mixer::Bus& b) -> float& { return b.reverb.p.modDepth; });
+        add("Velvet colour", -1, 1, 0.01, [](wm::mixer::Bus& b) -> float& { return b.reverb.p.color; });
         add("Shimmer semitones", -12, 12, 1, [](wm::mixer::Bus& b) -> float& { return b.reverb.shimmerSemis; });
         add("Shimmer amount", 0, 1, 0.01, [](wm::mixer::Bus& b) -> float& { return b.reverb.shimmerAmount; });
         add("Reverb mix", 0, 1, 0.01, [](wm::mixer::Bus& b) -> float& { return b.reverb.mix; });

@@ -12,7 +12,7 @@ namespace wm::mixer {
 #define WM_FX_FIELDS(X) X(lowCutHz) X(lowGain) X(lowFreq) X(midGain) X(midFreq) X(midQ) X(highGain) X(highFreq) \
     X(threshDb) X(ratio) X(attackMs) X(releaseMs) X(makeupDb) X(kneeDb)
 
-#define WM_BUS_FIELDS(X) X(reverb.p.decay) X(reverb.p.dampHz) X(reverb.p.preDelayMs) X(reverb.p.size) X(reverb.p.modDepth) \
+#define WM_BUS_FIELDS(X) X(reverb.p.decay) X(reverb.p.dampHz) X(reverb.p.preDelayMs) X(reverb.p.size) X(reverb.p.modDepth) X(reverb.p.color) \
     X(reverb.shimmerSemis) X(reverb.shimmerAmount) X(reverb.mix) X(delay.timeMs) X(delay.feedback) X(delay.shiftSemis) \
     X(delay.dampHz) X(delay.mix) X(delay.shimmerAmount)
 
