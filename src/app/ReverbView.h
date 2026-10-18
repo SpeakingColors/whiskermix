@@ -53,8 +53,8 @@ public:
         busBox.addItem("Bus 1", 1); busBox.addItem("Bus 2", 2); busBox.setSelectedId(1, juce::dontSendNotification);
         busBox.onChange = [this] { refresh(); };
         addAndMakeVisible(busBox);
-        const char* names[] = {"Plate", "Hall", "Shimmer Plate", "Shimmer Hall"};
-        for (int i = 0; i < 4; ++i) {
+        const char* names[] = {"Plate", "Hall", "Shimmer Plate", "Shimmer Hall", "Lush"};
+        for (int i = 0; i < 5; ++i) {
             auto& b = typeB[i]; b.setButtonText(names[i]); b.setRadioGroupId(77); b.setClickingTogglesState(true);
             b.setColour(juce::TextButton::buttonOnColourId, col::violet);
             b.onClick = [this, i] { bus().reverb.type = wm::engine::ReverbType(i); edited(); };
@@ -84,7 +84,7 @@ public:
     }
     void refresh() {   // after undo, recall, load
         auto& b = bus();
-        for (int i = 0; i < 4; ++i) typeB[i].setToggleState(int(b.reverb.type) == i, juce::dontSendNotification);
+        for (int i = 0; i < 5; ++i) typeB[i].setToggleState(int(b.reverb.type) == i, juce::dontSendNotification);
         revOn.setToggleState(b.reverbOn, juce::dontSendNotification); dlyOn.setToggleState(b.delayOn, juce::dontSendNotification);
         for (auto& r : rows) r->slider.setValue(double(r->ref(b)), juce::dontSendNotification);
         graph.repaint();
@@ -118,7 +118,7 @@ private:
         rows.push_back(std::move(row));
     }
     wm::mixer::Mixer& mx; std::function<void()> onChanged;
-    juce::ComboBox busBox; juce::TextButton typeB[4], revOn, dlyOn;
+    juce::ComboBox busBox; juce::TextButton typeB[5], revOn, dlyOn;
     std::vector<std::unique_ptr<Row>> rows; DecayGraph graph;
 };
 }

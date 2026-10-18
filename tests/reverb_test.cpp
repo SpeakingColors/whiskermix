@@ -30,10 +30,10 @@ int main() {
         CHECK(goertzel(out, 440, sr) < 0.05f * goertzel(out, pf, sr));   // original pitch is gone
     }
     // 2. Reverbs: impulse response decays, no NaN, tail is long, higher decay setting = longer tail
-    for (int type = 0; type < 2; ++type) {
+    for (int type = 0; type < 3; ++type) {
         for (int pass = 0; pass < 2; ++pass) {
             ReverbUnit r; r.prepare(sr);
-            ReverbSettings s; s.type = type ? ReverbType::Hall : ReverbType::Plate; s.mix = 1.0f; s.p.decay = pass ? 0.9f : 0.3f;
+            ReverbSettings s; s.type = type == 2 ? ReverbType::Lush : type ? ReverbType::Hall : ReverbType::Plate; s.mix = 1.0f; s.p.decay = pass ? 0.9f : 0.3f;
             std::vector<float> L(96000), R(96000);
             for (size_t i = 0; i < L.size(); ++i) r.process(i == 0 ? 1.0f : 0.0f, i == 0 ? 1.0f : 0.0f, L[i], R[i], s);
             bool finite = true; for (float v : L) finite = finite && std::isfinite(v);
@@ -41,14 +41,14 @@ int main() {
             float e1 = energy(L, 2000, 12000), e2 = energy(L, 40000, 50000), e3 = energy(L, 86000, 96000);
             CHECK(e1 > 1e-6f);
             CHECK(e2 < e1 && e3 < e2);
-            static float tails[2][2];
+            static float tails[3][2];
             tails[type][pass] = e2;
             if (pass == 1) CHECK(tails[type][1] > tails[type][0]);
             CHECK(std::fabs(energy(L, 0, 96000) - energy(R, 0, 96000)) / energy(L, 0, 96000) < 0.9f);   // both channels alive
         }
     }
     // 3. Stability: loud noise through all four types, then silence: output must settle and stay bounded
-    for (int t = 0; t < 4; ++t) {
+    for (int t = 0; t < 5; ++t) {
         ReverbUnit r; r.prepare(sr);
         ReverbSettings s; s.type = ReverbType(t); s.mix = 1.0f; s.p.decay = 0.95f; s.shimmerAmount = 0.9f;
         float peak = 0, l, rr; std::srand(1);
