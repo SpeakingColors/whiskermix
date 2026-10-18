@@ -1,0 +1,2 @@
+# Lets the logged-in user send mixer commands to the Digiface USB without root.
+SUBSYSTEM=="usb", ATTR{idVendor}=="2a39", ATTR{idProduct}=="3fa0", TAG+="uaccess"

@@ -10,11 +10,12 @@
 4. **FX**: own DSP block chain applied in software (see the shared cat-fx plan).
 
 ## Hardware backends
-- **Digiface mixer** (`src/backends/digiface/`): a pure C++ codec (gain values, channel and main-output packets) behind a small `Transport` interface, plus a recording transport for tests and dry-run. A libusb transport is the next step and is not yet tested on real hardware.
+- **Digiface mixer** (`src/backends/digiface/`): a pure C++ codec (gain values, channel and main-output packets) behind a small `Transport` interface, plus a recording transport for tests and dry-run. `LibusbTransport` sends the writes over USB; it does not detach the kernel audio driver, so audio keeps running. It compiles but is not yet tested on real hardware. Install `packaging/udev/70-whiskermix-digiface.rules` so no root is needed.
 - Controls the hardware does not take over USB (mute, solo, width and similar) are done in software through PipeWire/JACK, so the UI behaves the same either way.
+- **Names** (`src/names/`): one list of channel names generates a WirePlumber rule so the device and its channels carry the same names in system sound settings, patchbays and DAWs. Experimental: run `tools/wm-diagnose.sh` to check the real node names and how each app shows them.
 - The Pulse 16 uses SysEx over DIN MIDI.
 
-Run the codec test with `g++ -std=c++17 tests/digiface_codec_test.cpp -o /tmp/dft && /tmp/dft`.
+Tests: `g++ -std=c++17 tests/digiface_codec_test.cpp -o /tmp/t1 && /tmp/t1` and the same for `tests/names_test.cpp`.
 
 ## Fallback if the matrix protocol cannot be learned
 Run the mixer in software: route PipeWire/JACK ports through our own mixer and use the Digiface only as an audio interface.
