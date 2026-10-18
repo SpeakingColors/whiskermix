@@ -1,0 +1,7 @@
+WhiskerMix for Windows
+======================
+1. Unzip anywhere.
+2. Run WhiskerMix.exe. Choose your audio device in Settings (ASIO recommended).
+3. Effect plugins: copy the .vst3 folders from "plugins" into C:\Program Files\Common Files\VST3
+Note: Windows builds mix audio only. Digiface USB control (hardware mixer) is Linux only for now.
+Full guide: manual\MANUAL.md

@@ -62,3 +62,34 @@ jobs:
             build/ShimmerReverb_artefacts/**/VST3/**
             build/ShimmerDelay_artefacts/**/Standalone/**
             build/ShimmerReverb_artefacts/**/Standalone/**
+  package:
+    strategy:
+      matrix:
+        include:
+          - {os: ubuntu-24.04, name: linux}
+          - {os: windows-latest, name: windows}
+          - {os: macos-latest, name: macos}
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ pkg-config libpipewire-0.3-dev libusb-1.0-0-dev libasound2-dev \
+            libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype-dev libfontconfig1-dev libgl-dev
+      - run: git clone --depth 1 --branch 8.0.12 https://github.com/juce-framework/JUCE.git third_party/JUCE
+      - shell: bash
+        run: |
+          set -o pipefail
+          extra=""; [ "${{ matrix.name }}" != "linux" ] && extra="-DWM_WINDOWS_TEST=ON"
+          (cmake -B build -DCMAKE_BUILD_TYPE=Release -DWM_BUILD_APP=ON -DWM_BUILD_PLUGINS=ON $extra && cmake --build build --config Release) 2>&1 | tee build.log
+      - if: failure()
+        shell: bash
+        run: grep -E "error|Error" build.log | head -15 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+      - shell: bash
+        run: tools/package.sh ${{ matrix.name }} build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WhiskerMix-${{ matrix.name }}
+          path: dist/WhiskerMix-${{ matrix.name }}.zip

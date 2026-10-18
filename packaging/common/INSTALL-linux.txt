@@ -1,0 +1,9 @@
+WhiskerMix for Linux
+====================
+1. Unzip anywhere, open a terminal in the folder.
+2. Run:  sh install.sh
+   This copies the app to ~/.local/opt/whiskermix, the effect plugins (VST3) to ~/.vst3,
+   adds a menu entry, and installs the Digiface USB rule (asks for sudo once).
+3. Unplug and replug the Digiface USB, then start "WhiskerMix" from your menu.
+Needs PipeWire (default on Bazzite, Fedora, Ubuntu 24.04+) and libusb-1.0 (installed by default on most systems).
+Full guide: manual/MANUAL.md. Uninstall: sh uninstall.sh

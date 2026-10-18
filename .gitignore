@@ -1,5 +1,8 @@
-build/
+*.log
 *.o
 *.so
-*.log
+*.whl
 .DS_Store
+build/
+dist/
+third_party/JUCE/
