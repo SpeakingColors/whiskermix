@@ -15,24 +15,26 @@ jobs:
           sudo apt-get install -y cmake ninja-build g++ pkg-config libpipewire-0.3-dev libusb-1.0-0-dev libasound2-dev \
             libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype-dev libfontconfig1-dev libgl-dev
       - run: git clone --depth 1 --branch 8.0.12 https://github.com/juce-framework/JUCE.git third_party/JUCE
-      - run: (cmake -B build -G Ninja -DWM_BUILD_APP=ON && cmake --build build -- -k 0) > build.log 2>&1
+      - shell: bash
+        run: |
+          set -o pipefail
+          (cmake -B build -G Ninja -DWM_BUILD_APP=ON && cmake --build build) 2>&1 | tee build.log
       - if: failure()
-        run: grep -iE "error|fatal|undefined reference" build.log | sort -u | head -9 | sed 's/^/::error::/'
-      - if: failure()
-        run: tail -n 6 build.log | sed 's/^/::error::TAIL /' 
+        shell: bash
+        run: grep -E "error|Error|CMake Error" build.log | head -15 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
   desktop-app:
     strategy:
       matrix:
         os: [windows-latest, macos-latest]
+      fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - run: git clone --depth 1 --branch 8.0.12 https://github.com/juce-framework/JUCE.git third_party/JUCE
       - shell: bash
-        run: (cmake -B build -DWM_BUILD_APP=ON -DWM_WINDOWS_TEST=ON && cmake --build build --config Release) > build.log 2>&1
+        run: |
+          set -o pipefail
+          (cmake -B build -DWM_BUILD_APP=ON -DWM_WINDOWS_TEST=ON && cmake --build build --config Release) 2>&1 | tee build.log
       - if: failure()
         shell: bash
-        run: grep -iE "error|fatal" build.log | sort -u | head -9 | sed 's/^/::error::/'
-      - if: failure()
-        shell: bash
-        run: tail -n 6 build.log | sed 's/^/::error::TAIL /' 
+        run: grep -E "error|Error|CMake Error" build.log | head -15 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
