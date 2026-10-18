@@ -24,6 +24,7 @@ struct Channel {
     bool midSide = false;       // M/S processing
     float fxSendDb = -60.0f;    // send to the FX bus; -60 = off
     bool cue = false;           // cue (headphone pre-listen)
+    bool hidden = false;        // hidden in the mixer (Settings > Channel layout)
     wm::engine::FxParams fx;
 };
 

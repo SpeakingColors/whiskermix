@@ -17,7 +17,7 @@ public:
         setUsingNativeTitleBar(true);
         setContentOwned(content, true);
         setResizable(true, true);
-        centreWithSize(1280, 800);
+        centreWithSize(1360, 860);
         setVisible(true);
     }
     void closeButtonPressed() override { juce::JUCEApplication::getInstance()->systemRequestedQuit(); }
@@ -28,6 +28,7 @@ public:
     const juce::String getApplicationName() override { return "WhiskerMix"; }
     const juce::String getApplicationVersion() override { return "0.1.0"; }
     void initialise(const juce::String&) override {
+        juce::LookAndFeel::setDefaultLookAndFeel(&look);
         mixer = std::make_unique<wm::mixer::Mixer>(8, 2);
         routing = std::make_unique<wm::mixer::RoutingMatrix>(8, 2);
         engine = std::make_unique<wm::engine::AudioEngine>(*mixer, *routing);
@@ -53,8 +54,9 @@ public:
 #else
         pw.quit(); if (audio.joinable()) audio.join();
 #endif
-        window.reset(); }
+        window.reset(); juce::LookAndFeel::setDefaultLookAndFeel(nullptr); }
 private:
+    wmui::SodaLook look;
     std::unique_ptr<wm::mixer::Mixer> mixer;
     std::unique_ptr<wm::mixer::RoutingMatrix> routing;
     std::unique_ptr<wm::engine::AudioEngine> engine;

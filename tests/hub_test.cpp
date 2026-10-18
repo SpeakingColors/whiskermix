@@ -2,6 +2,7 @@
 #include <cstdio>
 #include "../src/mixer/MidiHub.h"
 #include "../src/mixer/StateJson.h"
+#include "../src/mixer/Settings.h"
 using namespace wm::mixer;
 int main() {
     MidiHub h;
@@ -33,8 +34,10 @@ int main() {
     MidiHub h2; assert(h2.fromJson(h.toJson()) && h2.devices().size() == 2 && h2.devices()[0] == h.devices()[0] && h2.devices()[0].chHi == 17);
     // channel extras round trip
     State st; st.channels.resize(1); st.buses.resize(1);
-    auto& c = st.channels[0]; c.name = "MODX"; c.colour = 4; c.emoji = "\xF0\x9F\x8E\xB9"; c.width = 1.4f; c.midSide = true; c.fxSendDb = -20; c.cue = true;
+    auto& c = st.channels[0]; c.name = "MODX"; c.colour = 4; c.emoji = "\xF0\x9F\x8E\xB9"; c.width = 1.4f; c.midSide = true; c.fxSendDb = -20; c.cue = true; c.hidden = true;
     State b; assert(fromJson(toJson(st), b));
-    assert(b.channels[0].colour == 4 && b.channels[0].emoji == c.emoji && b.channels[0].midSide && b.channels[0].cue && std::abs(b.channels[0].width - 1.4f) < 1e-3 && b.channels[0].fxSendDb == -20);
+    assert(b.channels[0].colour == 4 && b.channels[0].emoji == c.emoji && b.channels[0].midSide && b.channels[0].cue && b.channels[0].hidden && std::abs(b.channels[0].width - 1.4f) < 1e-3 && b.channels[0].fxSendDb == -20);
+    Settings a; a.tooltips = false; a.peakHoldSec = 99; a.autosave = false;
+    Settings b2; assert(b2.fromJson(a.toJson()) && !b2.tooltips && !b2.autosave && b2.peakHoldSec == 10.0f && b2.doubleClickReset);
     std::puts("hub_test ok");
 }

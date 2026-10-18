@@ -39,8 +39,8 @@ inline std::string toJson(const State& st) {
                       i ? "," : "", jsonEscape(c.name).c_str(), c.gainDb, c.pan, c.mute, c.solo, c.phaseL, c.phaseR, c.stereoLinked);
         std::string one = b;
         one.pop_back();            // drop the closing brace, add fx fields, close again
-        char ex[96];
-        std::snprintf(ex, sizeof ex, ",\"colour\":%d,\"width\":%.3f,\"ms\":%d,\"fxSend\":%.2f,\"cue\":%d,\"emoji\":\"", c.colour, double(c.width), c.midSide, double(c.fxSendDb), c.cue);
+        char ex[128];
+        std::snprintf(ex, sizeof ex, ",\"colour\":%d,\"width\":%.3f,\"ms\":%d,\"fxSend\":%.2f,\"cue\":%d,\"hide\":%d,\"emoji\":\"", c.colour, double(c.width), c.midSide, double(c.fxSendDb), c.cue, c.hidden);
         o += one + fx + ex + jsonEscape(c.emoji) + "\"}";
     }
     o += "],\"buses\":[";
@@ -96,6 +96,7 @@ inline bool fromJson(const std::string& s, State& st) {
         if (detail::field(s, p, e, "ms", v)) c.midSide = v == "1";
         if (detail::field(s, p, e, "fxSend", v)) c.fxSendDb = std::strtof(v.c_str(), nullptr);
         if (detail::field(s, p, e, "cue", v)) c.cue = v == "1";
+        if (detail::field(s, p, e, "hide", v)) c.hidden = v == "1";
         if (detail::field(s, p, e, "emoji", v)) c.emoji = v;
         if (detail::field(s, p, e, "fxEq", v)) c.fx.eqOn = v == "1";
         if (detail::field(s, p, e, "fxComp", v)) c.fx.compOn = v == "1";
