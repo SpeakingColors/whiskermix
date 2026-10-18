@@ -38,16 +38,15 @@ public:
         btn(undoB, "Undo", [this] { if (undo.canUndo()) apply(undo.undo(current())); });
         btn(redoB, "Redo", [this] { if (undo.canRedo()) apply(undo.redo(current())); });
         btn(addB, "+ Channel", [this] { addChannel(); });
-        btn(storeB, "Store A", [this] { mx.store("A"); });
-        btn(recallB, "Recall A", [this] {
-            auto before = current();
-            if (mx.recall("A")) {
-                rt.resize(int(mx.state().channels.size()), int(mx.state().buses.size()));
-                undo.push(before); last = sig(); mixerView.refreshAll(); reverb.refresh(); } });
+        btn(storeB, "Store", [this] { storeSnap(); });
+        btn(recallB, "Recall", [this] { recallSnap(snapBox.getText().toStdString()); });
+        snapBox.setEditableText(true); snapBox.setTextWhenNothingSelected("snapshot name");
+        snapBox.onChange = [this] { if (snapBox.getSelectedId() > 0) recallSnap(snapBox.getText().toStdString()); };
+        addAndMakeVisible(snapBox);
         btn(saveB, "Save", [this] { save(); });
         btn(loadB, "Load", [this] { load(); });
-        undoB.setTooltip("Undo the last change"); redoB.setTooltip("Redo"); addB.setTooltip("Add an input channel"); storeB.setTooltip("Remember the whole mixer as snapshot A");
-        recallB.setTooltip("Go back to snapshot A"); saveB.setTooltip("Save the workspace to a .wmix file"); loadB.setTooltip("Open a .wmix workspace file");
+        undoB.setTooltip("Undo the last change"); redoB.setTooltip("Redo"); addB.setTooltip("Add an input channel"); storeB.setTooltip("Store the whole mixer under the name in the snapshot box"); snapBox.setTooltip("Type a name and press Store; pick a name to recall it");
+        recallB.setTooltip("Go back to the snapshot in the box"); saveB.setTooltip("Save the workspace to a .wmix file"); loadB.setTooltip("Open a .wmix workspace file");
         fxPage.eq.params = fxPage.comp.params = [this] { return &mx.state().channels[size_t(mixerView.selectedChannel)].fx; };
         fxPage.comp.grDb = [this] { return eng.gainReductionDb(mixerView.selectedChannel); };
         for (auto* b : {&fxPage.eqOn, &fxPage.compOn}) { b->setClickingTogglesState(true); addAndMakeVisible(b); fxPage.addAndMakeVisible(b); }
@@ -56,7 +55,7 @@ public:
         fxPage.compOn.onClick = [this] { fx().compOn = fxPage.compOn.getToggleState(); fxPage.repaint(); };
         mixerView.onSelect = [this](int) { syncFx(); fxPage.repaint(); };
         last = sig();
-        applyPrefs();
+        applyPrefs(); loadSnaps();
         juce::MessageManager::callAsync([safe = juce::Component::SafePointer<AppView>(this)] { if (safe != nullptr) { safe->midi.rescan(); safe->loadAutosave(); } });
         startTimerHz(30);
     }
@@ -75,7 +74,10 @@ public:
     void resized() override {
         auto r = getLocalBounds();
         auto bar = r.removeFromTop(38).reduced(4); bar.removeFromLeft(180);
-        for (auto* b : {&undoB, &redoB, &addB, &storeB, &recallB, &saveB, &loadB}) b->setBounds(bar.removeFromLeft(86).reduced(2));
+        for (auto* b : {&undoB, &redoB, &addB}) b->setBounds(bar.removeFromLeft(86).reduced(2));
+        bar.removeFromLeft(10); snapBox.setBounds(bar.removeFromLeft(150).reduced(2)); storeB.setBounds(bar.removeFromLeft(64).reduced(2)); recallB.setBounds(bar.removeFromLeft(72).reduced(2));
+        bar.removeFromLeft(10);
+        for (auto* b : {&saveB, &loadB}) b->setBounds(bar.removeFromLeft(80).reduced(2));
         tabs.setBounds(r);
     }
 private:
@@ -144,6 +146,34 @@ private:
         else tipWin.reset();
         settingsView.syncSettings();
     }
+    // Snapshots: named copies of the whole mixer state, kept in the app data folder (snapshots/<name>.json).
+    static juce::File snapDir() { auto d = dataDir().getChildFile("snapshots"); d.createDirectory(); return d; }
+    static juce::String cleanName(juce::String n) { return n.retainCharacters("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 _-").trim().substring(0, 32); }
+    void refreshSnaps(const juce::String& select) {
+        snapBox.clear(juce::dontSendNotification); int id = 1, sel = 0;
+        for (auto& n : mx.snapshotNames()) { snapBox.addItem(n, id); if (juce::String(n) == select) sel = id; ++id; }
+        if (sel) snapBox.setSelectedId(sel, juce::dontSendNotification); else snapBox.setText(select, juce::dontSendNotification);
+    }
+    void storeSnap() {
+        auto n = cleanName(snapBox.getText()); if (n.isEmpty()) n = "Snap " + juce::String(int(mx.snapshotNames().size()) + 1);
+        mx.store(n.toStdString());
+        snapDir().getChildFile(n + ".json").replaceWithText(juce::String(wm::mixer::toJson(mx.state())));
+        refreshSnaps(n);
+    }
+    void recallSnap(const std::string& name) {
+        auto before = current();
+        if (mx.recall(name)) {
+            rt.resize(int(mx.state().channels.size()), int(mx.state().buses.size()));
+            undo.push(before); last = sig(); mixerView.refreshAll(); settingsView.rebuild(); reverb.refresh(); syncFx(); fxPage.repaint();
+        }
+    }
+    void loadSnaps() {
+        auto keep = mx.state();
+        for (auto& f : snapDir().findChildFiles(juce::File::findFiles, false, "*.json")) {
+            wm::mixer::State st; if (wm::mixer::fromJson(f.loadFileAsString().toStdString(), st)) { mx.state() = st; mx.store(f.getFileNameWithoutExtension().toStdString()); }
+        }
+        mx.state() = keep; refreshSnaps("");
+    }
     void autosave() { dataDir().getChildFile("autosave.wmix").replaceWithText(juce::String(wm::mixer::toJson(mx.state(), rt))); }
     void loadAutosave() {
         if (!wm::mixer::settings().loadAutosaveOnStart) return;
@@ -171,7 +201,7 @@ private:
     wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; MixerView mixerView; RoutingView routing; ReverbView reverb; wm::engine::AudioEngine& eng;
     wm::mixer::MidiHub hub; MidiView midi; SettingsView settingsView; std::unique_ptr<juce::TooltipWindow> tipWin; int ticks = 0;
     juce::TabbedComponent tabs{juce::TabbedButtonBar::TabsAtTop};
-    juce::TextButton undoB, redoB, addB, storeB, recallB, saveB, loadB;
+    juce::TextButton undoB, redoB, addB, storeB, recallB, saveB, loadB; juce::ComboBox snapBox;
     wm::mixer::WorkspaceUndo undo; wm::mixer::Workspace lastWs; std::string last;
     std::unique_ptr<juce::FileChooser> chooser;
 };
