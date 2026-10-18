@@ -15,6 +15,8 @@
 
 namespace wm::engine {
 
+constexpr size_t kMaxChannels = 64, kMaxBuses = 8;   // everything is preallocated for these, so channels can be added live
+
 inline float dbToLin(float db) { return db <= -119.0f ? 0.0f : std::pow(10.0f, db / 20.0f); }
 
 class AudioEngine {
@@ -29,15 +31,14 @@ public:
     void prepare(int maxFrames) {
         maxFrames_ = maxFrames;
         for (int i = 0; i < 3; ++i) { snaps_.all(i).state = mx_.state(); snaps_.all(i).routing = rt_; }
-        size_t nc = mx_.state().channels.size(), nb = mx_.state().buses.size();
-        cur_.assign(nc * nb * 2, 0.0f);
-        fx_.assign(nc, ChannelFx{});
-        buf_.assign(nc, std::vector<float>(size_t(maxFrames)));
-        peakIn_.reset(new std::atomic<float>[nc]); gr_.reset(new std::atomic<float>[nc]);
-        peakOut_.reset(new std::atomic<float>[nb * 2]);
-        for (size_t i = 0; i < nc; ++i) { peakIn_[i] = 0; gr_[i] = 0; }
-        for (size_t i = 0; i < nb * 2; ++i) peakOut_[i] = 0;
-        nc_ = nc; nb_ = nb;
+        cur_.assign(kMaxChannels * kMaxBuses * 2, 0.0f);
+        fx_.assign(kMaxChannels, ChannelFx{});
+        buf_.assign(kMaxChannels, std::vector<float>(size_t(maxFrames)));
+        peakIn_.reset(new std::atomic<float>[kMaxChannels]); gr_.reset(new std::atomic<float>[kMaxChannels]);
+        peakOut_.reset(new std::atomic<float>[kMaxBuses * 2]);
+        for (size_t i = 0; i < kMaxChannels; ++i) { peakIn_[i] = 0; gr_[i] = 0; }
+        for (size_t i = 0; i < kMaxBuses * 2; ++i) peakOut_[i] = 0;
+        nc_ = 0; nb_ = 0;
     }
     // UI thread: publish the current mixer state to the audio thread (cheap; call after edits, e.g. every 16 ms).
     void sync() {
@@ -50,10 +51,16 @@ public:
     void process(const float* const* in, float* const* out, int n) {
         const Snap& sn = snaps_.acquire();
         const auto& st = sn.state; const auto& rt = sn.routing;
-        size_t nc = nc_, nb = nb_;
-        if (st.channels.size() != nc || st.buses.size() != nb || n > maxFrames_) {   // setup changed: silence until prepare()
-            for (size_t o = 0; o < nb * 2; ++o) std::fill(out[o], out[o] + n, 0.0f);
+        size_t nc = st.channels.size(), nb = st.buses.size();
+        if (nc > kMaxChannels || nb > kMaxBuses || rt.inputs() != int(nc) || rt.outputs() != int(nb) || n > maxFrames_) {
+            for (size_t o = 0; o < nb * 2 && o < kMaxBuses * 2; ++o) std::fill(out[o], out[o] + n, 0.0f);   // inconsistent: silence
             return;
+        }
+        if (nc != nc_ || nb != nb_) {   // channels or buses added or removed live: reset the DSP state of the ones that appeared
+            for (size_t c = nc_; c < nc; ++c) { fx_[c] = ChannelFx{}; }
+            for (size_t c = 0; c < kMaxChannels; ++c) for (size_t b = 0; b < kMaxBuses; ++b)
+                if (c >= nc_ || b >= nb_) { cur_[(c * kMaxBuses + b) * 2] = 0; cur_[(c * kMaxBuses + b) * 2 + 1] = 0; }
+            nc_ = nc; nb_ = nb;
         }
         NoDenormals nd;
         for (size_t o = 0; o < nb * 2; ++o) std::fill(out[o], out[o] + n, 0.0f);
@@ -76,8 +83,8 @@ public:
             for (size_t b = 0; b < nb; ++b) {
                 float send = rt.routed(int(c), int(b)) ? dbToLin(rt.get(int(c), int(b))) : 0.0f;
                 float tl = strip * send * pl, tr = strip * send * pr;
-                float& gl = cur_[(c * nb + b) * 2];
-                float& gr = cur_[(c * nb + b) * 2 + 1];
+                float& gl = cur_[(c * kMaxBuses + b) * 2];
+                float& gr = cur_[(c * kMaxBuses + b) * 2 + 1];
                 float *ol = out[b * 2], *orr = out[b * 2 + 1];
                 for (int i = 0; i < n; ++i) {
                     gl += (tl - gl) * coef_;
@@ -111,7 +118,7 @@ private:
     TripleBuffer<Snap> snaps_;
     float coef_ = 0.01f, sr_ = 48000.0f;
     int maxFrames_ = 4096;
-    size_t nc_ = 0, nb_ = 0;
+    size_t nc_ = 0, nb_ = 0;   // counts the DSP state is currently valid for (audio thread only)
     std::vector<float> cur_;
     std::vector<ChannelFx> fx_;
     std::vector<std::vector<float>> buf_;

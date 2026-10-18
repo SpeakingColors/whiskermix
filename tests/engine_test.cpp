@@ -68,6 +68,23 @@ int main() {
         CHECK(near(bq.magDb(48000, 1000), 12.0f, 0.1f));
         CHECK(near(engine::compOutDb(fx, -8), -20 + 12 / 4.0f, 0.01f));
     }
+    // Live add: a channel appears while the engine is running, the old one keeps working
+    {
+        mixer::Mixer m3(1, 1); mixer::RoutingMatrix r3(1, 1); r3.set(0, 0, 0.0f);
+        engine::AudioEngine e3(m3, r3); e3.prepare(256);
+        std::vector<float> a(256, 0.5f), b(256, 0.25f), o0(256), o1(256);
+        const float* ip1[1] = {a.data()}; float* op[2] = {o0.data(), o1.data()};
+        e3.sync(); for (int k = 0; k < 40; ++k) e3.process(ip1, op, 256);
+        CHECK(near(o0[255], 0.5f * 0.7071f));
+        m3.addChannel(); r3.addInput(); r3.set(1, 0, 0.0f); m3.state().channels[1].pan = -1.0f; e3.sync();
+        const float* ip2[2] = {a.data(), b.data()};
+        for (int k = 0; k < 40; ++k) e3.process(ip2, op, 256);
+        CHECK(near(o0[255], 0.5f * 0.7071f + 0.25f));
+        CHECK(near(o1[255], 0.5f * 0.7071f));
+        m3.removeLastChannel(); r3.resize(1, 1); e3.sync();
+        for (int k = 0; k < 40; ++k) e3.process(ip1, op, 256);
+        CHECK(near(o0[255], 0.5f * 0.7071f));
+    }
     // Triple buffer under a real writer/reader race: every block read must be internally consistent.
     {
         struct P { int a = 0, b = 0, c = 0; };

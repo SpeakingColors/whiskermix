@@ -43,6 +43,12 @@ public:
     State& state() { return state_; }
     const State& state() const { return state_; }
 
+    int addChannel() {
+        state_.channels.emplace_back();
+        state_.channels.back().name = "In " + std::to_string(state_.channels.size());
+        return int(state_.channels.size()) - 1;
+    }
+    void removeLastChannel() { if (!state_.channels.empty()) state_.channels.pop_back(); }
     void rename(int ch, const std::string& n) { state_.channels.at(size_t(ch)).name = n; }
 
     bool anySolo() const {

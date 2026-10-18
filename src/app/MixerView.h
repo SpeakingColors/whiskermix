@@ -86,13 +86,8 @@ private:
 
 class MixerView : public juce::Component, private juce::Timer {
 public:
-    MixerView(wm::mixer::Mixer& m, wm::mixer::RoutingMatrix& r, wm::engine::AudioEngine& e) : mx(m), eng(e) {
-        for (size_t i = 0; i < m.state().channels.size(); ++i) {
-            if (!r.routed(int(i), 0)) r.set(int(i), 0, 0.0f);   // route every channel to bus 1 by default
-            strips.push_back(std::make_unique<Strip>(m, r, int(i)));
-            strips.back()->onSelect = [this](int c) { select(c); };
-            addAndMakeVisible(*strips.back());
-        }
+    MixerView(wm::mixer::Mixer& m, wm::mixer::RoutingMatrix& r, wm::engine::AudioEngine& e) : mx(m), rt(r), eng(e) {
+        rebuild();
         main.setSliderStyle(juce::Slider::LinearVertical); main.setRange(-60.0, 6.0, 0.1);
         main.setSkewFactorFromMidPoint(-12.0); main.setDoubleClickReturnValue(true, 0.0); main.setValue(0.0, juce::dontSendNotification);
         main.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 18); main.setTextValueSuffix(" dB");
@@ -104,6 +99,19 @@ public:
         select(0);
         startTimerHz(30);
     }
+    // Create or remove strips so they match the mixer's channel count (after add, undo, recall or load).
+    void rebuild() {
+        while (strips.size() > mx.state().channels.size()) strips.pop_back();
+        while (strips.size() < mx.state().channels.size()) {
+            int i = int(strips.size());
+            if (i < rt.inputs() && rt.outputs() > 0 && !rt.routed(i, 0)) rt.set(i, 0, 0.0f);   // new channels go to bus 1 by default
+            strips.push_back(std::make_unique<Strip>(mx, rt, i));
+            strips.back()->onSelect = [this](int c) { select(c); };
+            addAndMakeVisible(*strips.back());
+        }
+        if (selectedChannel >= int(strips.size())) selectedChannel = int(strips.size()) - 1;
+        resized();
+    }
     int selectedChannel = 0;
     std::function<void(int)> onSelect;
     void select(int c) {
@@ -112,6 +120,7 @@ public:
         if (onSelect) onSelect(c);
     }
     void refreshAll() {
+        rebuild();
         for (auto& s : strips) s->refresh();
         main.setValue(mx.state().buses[0].volumeDb, juce::dontSendNotification);
         dim.setToggleState(mx.state().buses[0].dim, juce::dontSendNotification);
@@ -131,7 +140,7 @@ private:
         for (size_t i = 0; i < strips.size(); ++i) strips[i]->setMeter(eng.inputPeakDb(int(i)));
         mainL.setDb(eng.outputPeakDb(0)); mainR.setDb(eng.outputPeakDb(1));
     }
-    wm::mixer::Mixer& mx; wm::engine::AudioEngine& eng;
+    wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; wm::engine::AudioEngine& eng;
     std::vector<std::unique_ptr<Strip>> strips; juce::Slider main; juce::TextButton dim; Meter mainL, mainR;
 };
 }  // namespace wmui

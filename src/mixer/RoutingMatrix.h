@@ -1,5 +1,6 @@
 // Routing matrix: gain in dB from every input to every output, with "no route" as -inf.
 #pragma once
+#include <algorithm>
 #include <vector>
 
 namespace wm::mixer {
@@ -26,6 +27,12 @@ public:
             n.push_back(kNoRoute);
         }
         g_ = n; ++out_;
+    }
+    // Grow or shrink, keeping existing routes (used after recalling a snapshot with a different channel count).
+    void resize(int inputs, int outputs) {
+        RoutingMatrix n(inputs, outputs);
+        for (int i = 0; i < std::min(in_, inputs); ++i) for (int o = 0; o < std::min(out_, outputs); ++o) n.set(i, o, get(i, o));
+        *this = n;
     }
     const std::vector<float>& data() const { return g_; }
 

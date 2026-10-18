@@ -13,7 +13,7 @@ public:
         eng.prepare(maxN);
         zero.assign(size_t(maxN), 0.0f);
         ins.assign(size_t(wantIn), nullptr);
-        tmp.assign(size_t(wantOut), std::vector<float>(size_t(maxN)));
+        tmp.assign(size_t(wantOut), std::vector<float>(size_t(maxN)));   // sized for the maximum channels and buses
         outs.clear(); for (auto& v : tmp) outs.push_back(v.data());
     }
     void audioDeviceStopped() override {}
@@ -25,7 +25,7 @@ public:
         eng.process(ins.data(), outs.data(), n);
         for (int o = 0; o < nOut; ++o) if (out[o]) for (int i = 0; i < n; ++i) out[o][i] = o < wantOut ? tmp[size_t(o)][size_t(i)] : 0.0f;
     }
-    int wantIn = 8, wantOut = 4, maxN = 0;
+    int wantIn = int(wm::engine::kMaxChannels), wantOut = int(wm::engine::kMaxBuses) * 2, maxN = 0;
 private:
     wm::engine::AudioEngine& eng;
     std::vector<float> zero; std::vector<const float*> ins; std::vector<std::vector<float>> tmp; std::vector<float*> outs;

@@ -41,7 +41,11 @@ public:
 #else
         if (pw.start(*engine, ins, buses)) audio = std::thread([this] { pw.run(); });
 #endif
-        window = std::make_unique<MainWindow>(new wmui::AppView(*mixer, *routing, *engine));
+        auto* view = new wmui::AppView(*mixer, *routing, *engine);
+#ifndef WM_JUCE_AUDIO
+        view->onChannelAdded = [this](const std::string& n) { pw.addInput(n); };
+#endif
+        window = std::make_unique<MainWindow>(view);
     }
     void shutdown() override {
 #ifdef WM_JUCE_AUDIO
