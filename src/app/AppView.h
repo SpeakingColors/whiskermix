@@ -6,6 +6,7 @@
 #include "MixerView.h"
 #include "FxView.h"
 #include "RoutingView.h"
+#include "ReverbView.h"
 #include "../mixer/UndoStack.h"
 #include "../mixer/StateJson.h"
 
@@ -14,10 +15,11 @@ namespace wmui {
 class AppView : public juce::Component, private juce::Timer {
 public:
     AppView(wm::mixer::Mixer& m, wm::mixer::RoutingMatrix& r, wm::engine::AudioEngine& e)
-        : mx(m), rt(r), mixerView(m, r, e), routing(m, r), eng(e) {
+        : mx(m), rt(r), mixerView(m, r, e), routing(m, r), reverb(m, [this] { eng.sync(); }), eng(e) {
         tabs.addTab("Mixer", col::panel, &mixerView, false);
         tabs.addTab("EQ / Comp", col::panel, &fxPage, false);
         tabs.addTab("Routing", col::panel, &routing, false);
+        tabs.addTab("Reverb / Delay", col::panel, &reverb, false);
         addAndMakeVisible(tabs);
         auto btn = [this](juce::TextButton& b, const char* t, std::function<void()> f) { b.setButtonText(t); b.onClick = std::move(f); addAndMakeVisible(b); };
         btn(undoB, "Undo", [this] { if (undo.canUndo()) apply(undo.undo(current())); });
@@ -28,7 +30,7 @@ public:
             auto before = current();
             if (mx.recall("A")) {
                 rt.resize(int(mx.state().channels.size()), int(mx.state().buses.size()));
-                undo.push(before); last = sig(); mixerView.refreshAll(); } });
+                undo.push(before); last = sig(); mixerView.refreshAll(); reverb.refresh(); } });
         btn(saveB, "Save", [this] { save(); });
         btn(loadB, "Load", [this] { load(); });
         fxPage.eq.params = fxPage.comp.params = [this] { return &mx.state().channels[size_t(mixerView.selectedChannel)].fx; };
@@ -73,6 +75,11 @@ private:
     std::string sig() const {
         std::string s = wm::mixer::toJson(mx.state(), rt);
         for (auto& c : mx.state().channels) s += fxSig(c.fx) + ';';
+        for (auto& b : mx.state().buses) s += std::to_string(b.reverbOn) + std::to_string(b.delayOn) + std::to_string(int(b.reverb.type)) +
+            std::to_string(b.reverb.p.decay) + std::to_string(b.reverb.p.dampHz) + std::to_string(b.reverb.p.preDelayMs) + std::to_string(b.reverb.p.size) +
+            std::to_string(b.reverb.p.modDepth) + std::to_string(b.reverb.shimmerSemis) + std::to_string(b.reverb.shimmerAmount) + std::to_string(b.reverb.mix) +
+            std::to_string(b.delay.timeMs) + std::to_string(b.delay.feedback) + std::to_string(b.delay.shiftSemis) + std::to_string(b.delay.dampHz) +
+            std::to_string(b.delay.shimmerAmount) + std::to_string(b.delay.mix) + ';';
         return s;
     }
     wm::mixer::Workspace current() const { return {mx.state(), rt}; }
@@ -84,7 +91,7 @@ private:
         eng.sync();
         mixerView.refreshAll(); resized();
     }
-    void apply(const wm::mixer::Workspace& w) { mx.state() = w.state; rt = w.routing; last = sig(); mixerView.refreshAll(); syncFx(); fxPage.repaint(); }
+    void apply(const wm::mixer::Workspace& w) { mx.state() = w.state; rt = w.routing; last = sig(); mixerView.refreshAll(); reverb.refresh(); syncFx(); fxPage.repaint(); }
     void timerCallback() override {
         eng.sync();   // hand the latest edits to the audio thread
         // Commit an undo step once the user lets go (no drag in progress) and the state differs from the last commit.
@@ -105,7 +112,7 @@ private:
             wm::mixer::State s = mx.state(); wm::mixer::RoutingMatrix keep = rt;
             if (wm::mixer::fromJson(f.loadFileAsString().toStdString(), s, rt)) { undo.push(current()); apply({s, rt}); } });
     }
-    wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; MixerView mixerView; RoutingView routing; wm::engine::AudioEngine& eng;
+    wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; MixerView mixerView; RoutingView routing; ReverbView reverb; wm::engine::AudioEngine& eng;
     juce::TabbedComponent tabs{juce::TabbedButtonBar::TabsAtTop};
     juce::TextButton undoB, redoB, addB, storeB, recallB, saveB, loadB;
     wm::mixer::WorkspaceUndo undo; wm::mixer::Workspace lastWs; std::string last;
