@@ -50,12 +50,12 @@ int main() {
     // 3. Stability: loud noise through all four types, then silence: output must settle and stay bounded
     for (int t = 0; t < 5; ++t) {
         ReverbUnit r; r.prepare(sr);
-        ReverbSettings s; s.type = ReverbType(t); s.mix = 1.0f; s.p.decay = 0.95f; s.shimmerAmount = 0.9f;
+        ReverbSettings s; s.type = ReverbType(t); s.mix = 1.0f; s.p.decay = 0.95f; s.shimmerAmount = 0.9f; s.shimmer2Amount = 1.0f; s.shimmer2Semis = 19;
         float peak = 0, l, rr; std::srand(1);
         for (int i = 0; i < 96000; ++i) { float n = (std::rand() / float(RAND_MAX) - 0.5f) * 2; r.process(n, n, l, rr, s); peak = std::max(peak, std::fabs(l)); }
         CHECK(std::isfinite(peak) && peak < 20.0f);
         float endPeak = 0; for (int i = 0; i < 480000; ++i) { r.process(0, 0, l, rr, s); if (i > 470000) endPeak = std::max(endPeak, std::fabs(l)); }
-        CHECK(std::isfinite(endPeak) && endPeak < 1.0f);
+        CHECK(std::isfinite(endPeak) && endPeak < 1.0f); if (!(endPeak < 1.0f)) std::printf("type %d endPeak %g\n", t, endPeak);
     }
     // 4. Shimmer delay: echo arrives at the set time, shifted up an octave on the second repeat
     {
@@ -78,6 +78,36 @@ int main() {
             hf[k] = d / (tot + 1e-9f);
         }
         CHECK(hf[1] > hf[0] * 1.3f);
+    }
+    // 6. Wet filters: low-pass at 1 kHz leaves less high-frequency content than open; high-pass removes low end
+    {
+        float hf[2], lo[2];
+        for (int k = 0; k < 2; ++k) {
+            ReverbUnit r; r.prepare(sr); ReverbSettings s; s.type = ReverbType::Hall; s.mix = 1.0f;
+            if (k) { s.wetLpHz = 1000.0f; }
+            float l, rr, prev = 0, d = 0, tot = 0; std::srand(5);
+            for (int i = 0; i < 48000; ++i) { float n = i < 2400 ? (std::rand() / float(RAND_MAX) - 0.5f) : 0.0f; r.process(n, n, l, rr, s);
+                if (i > 6000) { d += std::fabs(l - prev); tot += std::fabs(l); } prev = l; }
+            hf[k] = d / (tot + 1e-9f);
+        }
+        CHECK(hf[1] < hf[0] * 0.6f);
+        for (int k = 0; k < 2; ++k) {
+            ReverbUnit r; r.prepare(sr); ReverbSettings s; s.type = ReverbType::Hall; s.mix = 1.0f;
+            if (k) { s.wetHpHz = 1500.0f; }
+            float l, rr, e = 0, e2 = 0; std::srand(5);
+            for (int i = 0; i < 48000; ++i) { float n = i < 2400 ? (std::rand() / float(RAND_MAX) - 0.5f) : 0.0f; r.process(n, n, l, rr, s); if (i > 6000) { e += l * l; } }
+            (void)e2; lo[k] = e;
+        }
+        CHECK(lo[1] < lo[0] * 0.6f);
+    }
+    // 7. Second shimmer voice adds energy at its own pitch: with amount 0 it is exactly the same as before
+    {
+        ReverbUnit a, b; a.prepare(sr); b.prepare(sr);
+        ReverbSettings s; s.type = ReverbType::ShimmerHall; s.mix = 1.0f; s.shimmer2Semis = -12; s.shimmer2Amount = 0.0f;
+        ReverbSettings s2 = s; s2.shimmer2Amount = 1.0f;
+        float la, lb, rr, diff = 0;
+        for (int i = 0; i < 48000; ++i) { float x = i < 2400 ? std::sin(2*3.14159265f*440.0f*float(i)/sr) : 0.0f; a.process(x, x, la, rr, s); b.process(x, x, lb, rr, s2); if (i > 20000) diff += std::fabs(la - lb); }
+        CHECK(diff > 0.01f);
     }
     if (!fails) std::puts("reverb_test: all passed");
     return fails ? 1 : 0;

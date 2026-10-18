@@ -77,7 +77,7 @@ private:
         for (auto& c : mx.state().channels) s += fxSig(c.fx) + ';';
         for (auto& b : mx.state().buses) s += std::to_string(b.reverbOn) + std::to_string(b.delayOn) + std::to_string(int(b.reverb.type)) +
             std::to_string(b.reverb.p.decay) + std::to_string(b.reverb.p.dampHz) + std::to_string(b.reverb.p.preDelayMs) + std::to_string(b.reverb.p.size) +
-            std::to_string(b.reverb.p.modDepth) + std::to_string(b.reverb.p.color) + std::to_string(b.reverb.shimmerSemis) + std::to_string(b.reverb.shimmerAmount) + std::to_string(b.reverb.mix) +
+            std::to_string(b.reverb.p.modDepth) + std::to_string(b.reverb.p.color) + std::to_string(b.reverb.shimmerSemis) + std::to_string(b.reverb.shimmerAmount) + std::to_string(b.reverb.shimmer2Semis) + std::to_string(b.reverb.shimmer2Amount) + std::to_string(b.reverb.wetHpHz) + std::to_string(b.reverb.wetLpHz) + std::to_string(b.reverb.mix) +
             std::to_string(b.delay.timeMs) + std::to_string(b.delay.feedback) + std::to_string(b.delay.shiftSemis) + std::to_string(b.delay.dampHz) +
             std::to_string(b.delay.shimmerAmount) + std::to_string(b.delay.mix) + ';';
         return s;

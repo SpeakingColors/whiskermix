@@ -13,7 +13,7 @@ namespace wm::mixer {
     X(threshDb) X(ratio) X(attackMs) X(releaseMs) X(makeupDb) X(kneeDb)
 
 #define WM_BUS_FIELDS(X) X(reverb.p.decay) X(reverb.p.dampHz) X(reverb.p.preDelayMs) X(reverb.p.size) X(reverb.p.modDepth) X(reverb.p.color) \
-    X(reverb.shimmerSemis) X(reverb.shimmerAmount) X(reverb.mix) X(delay.timeMs) X(delay.feedback) X(delay.shiftSemis) \
+    X(reverb.shimmerSemis) X(reverb.shimmerAmount) X(reverb.shimmer2Semis) X(reverb.shimmer2Amount) X(reverb.wetHpHz) X(reverb.wetLpHz) X(reverb.mix) X(delay.timeMs) X(delay.feedback) X(delay.shiftSemis) \
     X(delay.dampHz) X(delay.mix) X(delay.shimmerAmount)
 
 inline std::string jsonEscape(const std::string& s) {

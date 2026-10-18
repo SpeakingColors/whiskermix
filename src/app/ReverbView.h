@@ -72,6 +72,10 @@ public:
         add("Velvet colour", -1, 1, 0.01, [](wm::mixer::Bus& b) -> float& { return b.reverb.p.color; });
         add("Shimmer semitones", -12, 12, 1, [](wm::mixer::Bus& b) -> float& { return b.reverb.shimmerSemis; });
         add("Shimmer amount", 0, 1, 0.01, [](wm::mixer::Bus& b) -> float& { return b.reverb.shimmerAmount; });
+        add("Shimmer 2 semitones", -12, 12, 1, [](wm::mixer::Bus& b) -> float& { return b.reverb.shimmer2Semis; });
+        add("Shimmer 2 amount", 0, 1, 0.01, [](wm::mixer::Bus& b) -> float& { return b.reverb.shimmer2Amount; });
+        add("Wet high-pass Hz", 20, 2000, 1, [](wm::mixer::Bus& b) -> float& { return b.reverb.wetHpHz; });
+        add("Wet low-pass Hz", 1000, 20000, 10, [](wm::mixer::Bus& b) -> float& { return b.reverb.wetLpHz; });
         add("Reverb mix", 0, 1, 0.01, [](wm::mixer::Bus& b) -> float& { return b.reverb.mix; });
         add("Delay time ms", 20, 2000, 1, [](wm::mixer::Bus& b) -> float& { return b.delay.timeMs; }, 2.0);
         add("Delay feedback", 0, 0.95, 0.01, [](wm::mixer::Bus& b) -> float& { return b.delay.feedback; });

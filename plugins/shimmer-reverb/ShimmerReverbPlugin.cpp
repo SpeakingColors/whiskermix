@@ -24,6 +24,10 @@ public:
         l.add(floatParam("color", "Velvet colour", -1, 1, 0.0f));
         l.add(floatParam("shift", "Shimmer (semitones)", -12, 12, 12));
         l.add(floatParam("shimmer", "Shimmer amount", 0, 1, 0.5f));
+        l.add(floatParam("shift2", "Shimmer 2 pitch", -12, 12, 7));
+        l.add(floatParam("shimmer2", "Shimmer 2 amount", 0, 1, 0));
+        l.add(floatParam("hp", "Wet high-pass Hz", 20, 2000, 20));
+        l.add(floatParam("lp", "Wet low-pass Hz", 1000, 20000, 20000));
         l.add(floatParam("mix", "Mix", 0, 1, 0.35f));
         return l;
     }
@@ -38,7 +42,9 @@ public:
         s.p.decay = *apvts.getRawParameterValue("decay"); s.p.dampHz = *apvts.getRawParameterValue("damp");
         s.p.preDelayMs = *apvts.getRawParameterValue("predelay"); s.p.size = *apvts.getRawParameterValue("size");
         s.p.modDepth = *apvts.getRawParameterValue("mod"); s.p.color = *apvts.getRawParameterValue("color"); s.shimmerSemis = *apvts.getRawParameterValue("shift");
-        s.shimmerAmount = *apvts.getRawParameterValue("shimmer"); s.mix = *apvts.getRawParameterValue("mix");
+        s.shimmerAmount = *apvts.getRawParameterValue("shimmer");
+        s.shimmer2Semis = *apvts.getRawParameterValue("shift2"); s.shimmer2Amount = *apvts.getRawParameterValue("shimmer2");
+        s.wetHpHz = *apvts.getRawParameterValue("hp"); s.wetLpHz = *apvts.getRawParameterValue("lp"); s.mix = *apvts.getRawParameterValue("mix");
         return s;
     }
     void processBlock(juce::AudioBuffer<float>& b, juce::MidiBuffer&) override {
@@ -49,7 +55,7 @@ public:
     }
     juce::AudioProcessorEditor* createEditor() override {
         auto* e = new FxEditor(*this, apvts, {{"decay", "Decay"}, {"damp", "Damping"}, {"predelay", "Pre-delay"}, {"size", "Size"},
-                               {"mod", "Modulation"}, {"shift", "Shimmer pitch"}, {"shimmer", "Shimmer amount"}, {"mix", "Mix"}}, "Shimmer Reverb");
+                               {"mod", "Modulation"}, {"shift", "Shimmer pitch"}, {"shimmer", "Shimmer amount"}, {"shift2", "Shimmer 2 pitch"}, {"shimmer2", "Shimmer 2 amount"}, {"hp", "Wet high-pass"}, {"lp", "Wet low-pass"}, {"mix", "Mix"}}, "Shimmer Reverb");
         e->graph.draw = [this](juce::Graphics& g, juce::Rectangle<float> r) {   // decay curve (dB over time) from the same numbers the DSP uses
             auto s = settings();
             bool plate = s.type == wm::engine::ReverbType::Plate || s.type == wm::engine::ReverbType::ShimmerPlate;

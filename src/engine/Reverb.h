@@ -207,6 +207,8 @@ struct ReverbSettings {
     ReverbType type = ReverbType::Plate;
     ReverbParams p;
     float shimmerSemis = 12.0f, shimmerAmount = 0.35f;   // amount of shifted tail fed back into the input
+    float shimmer2Semis = 7.0f, shimmer2Amount = 0.0f;   // second shimmer voice (0 = off), own pitch and amount
+    float wetHpHz = 20.0f, wetLpHz = 20000.0f;           // filters on the wet signal only (20 / 20000 = off)
     float mix = 0.3f;
 };
 
@@ -237,8 +239,8 @@ private:
 // One reverb unit with all types. Shimmer = tail is pitch shifted and fed back into the reverb input.
 class ReverbUnit {
 public:
-    void prepare(float sr) { plate_.prepare(sr); hall_.prepare(sr); velvet_.prepare(sr); ps_[0].prepare(sr, 80); ps_[1].prepare(sr, 80); reset(); }
-    void reset() { plate_.reset(); hall_.reset(); velvet_.reset(); ps_[0].reset(); ps_[1].reset(); last_[0] = last_[1] = 0; }
+    void prepare(float sr) { plate_.prepare(sr); hall_.prepare(sr); velvet_.prepare(sr); ps_[0].prepare(sr, 80); ps_[1].prepare(sr, 80); qs_[0].prepare(sr, 80); qs_[1].prepare(sr, 80); sr_ = sr; reset(); }
+    void reset() { plate_.reset(); hall_.reset(); velvet_.reset(); ps_[0].reset(); ps_[1].reset(); qs_[0].reset(); qs_[1].reset(); last_[0] = last_[1] = 0; for (float& v : f_) v = 0; }
     void process(float inL, float inR, float& outL, float& outR, const ReverbSettings& s) {
         bool shim = s.type == ReverbType::ShimmerPlate || s.type == ReverbType::ShimmerHall;
         float ratio = std::pow(2.0f, s.shimmerSemis / 12.0f);
@@ -246,19 +248,35 @@ public:
         if (shim) {
             // Loop gain stays below 1 whatever the knob says: amount 0..1 maps to 0..0.4, and the tail is soft limited below.
             float g = 0.4f * std::min(1.0f, std::max(0.0f, s.shimmerAmount));
+            float g2 = 0.4f * std::min(1.0f, std::max(0.0f, s.shimmer2Amount));
+            if (g + g2 > 0.4f) { float k = 0.4f / (g + g2); g *= k; g2 *= k; }   // both voices together never exceed the single-voice loop gain
             fl += g * ps_[0].tick(last_[0], ratio);
             fr += g * ps_[1].tick(last_[1], ratio);
+            if (s.shimmer2Amount > 0.0f) {
+                float r2 = std::pow(2.0f, s.shimmer2Semis / 12.0f);
+                fl += g2 * qs_[0].tick(last_[0], r2);
+                fr += g2 * qs_[1].tick(last_[1], r2);
+            }
         }
         float wl, wr;
         if (s.type == ReverbType::Plate || s.type == ReverbType::ShimmerPlate) plate_.process(fl, fr, wl, wr, s.p);
         else if (s.type == ReverbType::Velvet) velvet_.process(fl, fr, wl, wr, s.p);
         else hall_.process(fl, fr, wl, wr, s.p);
-        last_[0] = std::tanh(wl); last_[1] = std::tanh(wr);
+        last_[0] = std::tanh(wl); last_[1] = std::tanh(wr);   // feedback tap taken before the output filters
+        if (s.wetHpHz > 20.5f || s.wetLpHz < 19999.0f) {
+            const float kh = 1.0f - std::exp(-6.2831853f * std::min(s.wetHpHz, 0.45f * sr_) / sr_);
+            const float kl = 1.0f - std::exp(-6.2831853f * std::min(s.wetLpHz, 0.45f * sr_) / sr_);
+            float* w[2] = {&wl, &wr};
+            for (int c = 0; c < 2; ++c) {
+                f_[c*2] += kl * (*w[c] - f_[c*2]); *w[c] = f_[c*2];            // low pass
+                f_[c*2+1] += kh * (*w[c] - f_[c*2+1]); *w[c] -= f_[c*2+1];     // high pass
+            }
+        }
         outL = inL * (1 - s.mix) + wl * s.mix;
         outR = inR * (1 - s.mix) + wr * s.mix;
     }
 private:
-    PlateReverb plate_; HallReverb hall_; VelvetReverb velvet_; PitchShifter ps_[2]; float last_[2] = {};
+    PlateReverb plate_; HallReverb hall_; VelvetReverb velvet_; PitchShifter ps_[2], qs_[2]; float last_[2] = {}, f_[4] = {}, sr_ = 48000;
 };
 
 }  // namespace wm::engine
