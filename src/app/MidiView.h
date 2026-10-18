@@ -159,7 +159,10 @@ public:
         zipB.onClick = [this] { chooser = std::make_unique<juce::FileChooser>("Save debug report", juce::File(), "*.zip");
             chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& c) {
                 auto f = c.getResult(); if (f == juce::File()) return; auto txt = report();
-                juce::ZipFile::Builder b; b.addEntry(std::make_unique<juce::MemoryInputStream>(txt.toRawUTF8(), txt.getNumBytesAsUTF8(), true), 9, "whiskermix-report.txt", juce::Time::getCurrentTime());
+                juce::ZipFile::Builder b;
+                JUCE_BEGIN_IGNORE_DEPRECATION_WARNINGS   // the raw-pointer overload exists in every JUCE 8 release
+                b.addEntry(new juce::MemoryInputStream(txt.toRawUTF8(), txt.getNumBytesAsUTF8(), true), 9, "whiskermix-report.txt", juce::Time::getCurrentTime());
+                JUCE_END_IGNORE_DEPRECATION_WARNINGS
                 f.deleteFile(); juce::FileOutputStream out(f); if (out.openedOk()) b.writeToStream(out, nullptr); }); };
         btn(copyB, "Copy summary", "Copy the report text to the clipboard"); copyB.onClick = [this] { juce::SystemClipboard::copyTextToClipboard(report()); };
         preview.setMultiLine(true); preview.setReadOnly(true); preview.setVisible(false); addAndMakeVisible(preview);
