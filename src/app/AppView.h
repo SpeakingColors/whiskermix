@@ -14,7 +14,7 @@ namespace wmui {
 class AppView : public juce::Component, private juce::Timer {
 public:
     AppView(wm::mixer::Mixer& m, wm::mixer::RoutingMatrix& r, wm::engine::AudioEngine& e)
-        : mx(m), mixerView(m, r, e), routing(m, r), eng(e) {
+        : mx(m), rt(r), mixerView(m, r, e), routing(m, r), eng(e) {
         tabs.addTab("Mixer", col::panel, &mixerView, false);
         tabs.addTab("EQ / Comp", col::panel, &fxPage, false);
         tabs.addTab("Routing", col::panel, &routing, false);
@@ -71,6 +71,7 @@ private:
     }
     void apply(const wm::mixer::State& s) { mx.state() = s; last = sig(); mixerView.refreshAll(); syncFx(); fxPage.repaint(); }
     void timerCallback() override {
+        eng.sync();   // hand the latest edits to the audio thread
         // Commit an undo step once the user lets go (no drag in progress) and the state differs from the last commit.
         if (juce::Desktop::getInstance().getMainMouseSource().isDragging()) return;
         if (sig() != last) { undo.push(lastState); last = sig(); }
@@ -80,16 +81,16 @@ private:
     void save() {
         chooser = std::make_unique<juce::FileChooser>("Save workspace", juce::File(), "*.wmix");
         chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& c) {
-            auto f = c.getResult(); if (f != juce::File()) f.replaceWithText(wm::mixer::toJson(mx.state())); });
+            auto f = c.getResult(); if (f != juce::File()) f.replaceWithText(wm::mixer::toJson(mx.state(), rt)); });
     }
     void load() {
         chooser = std::make_unique<juce::FileChooser>("Load workspace", juce::File(), "*.wmix");
         chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& c) {
             auto f = c.getResult(); if (!f.existsAsFile()) return;
             wm::mixer::State s = mx.state();
-            if (wm::mixer::fromJson(f.loadFileAsString().toStdString(), s)) { undo.push(mx.state()); apply(s); } });
+            if (wm::mixer::fromJson(f.loadFileAsString().toStdString(), s, rt)) { undo.push(mx.state()); apply(s); } });
     }
-    wm::mixer::Mixer& mx; MixerView mixerView; RoutingView routing; wm::engine::AudioEngine& eng;
+    wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; MixerView mixerView; RoutingView routing; wm::engine::AudioEngine& eng;
     juce::TabbedComponent tabs{juce::TabbedButtonBar::TabsAtTop};
     juce::TextButton undoB, redoB, storeB, recallB, saveB, loadB;
     wm::mixer::UndoStack undo; wm::mixer::State lastState; std::string last;

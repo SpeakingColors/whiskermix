@@ -4,8 +4,13 @@
 #include <cstdlib>
 #include <string>
 #include "MixerModel.h"
+#include "RoutingMatrix.h"
 
 namespace wm::mixer {
+
+// EQ and compressor settings are stored as flat "fx*" keys inside each channel object.
+#define WM_FX_FIELDS(X) X(lowCutHz) X(lowGain) X(lowFreq) X(midGain) X(midFreq) X(midQ) X(highGain) X(highFreq) \
+    X(threshDb) X(ratio) X(attackMs) X(releaseMs) X(makeupDb) X(kneeDb)
 
 inline std::string jsonEscape(const std::string& s) {
     std::string o;
@@ -18,9 +23,19 @@ inline std::string toJson(const State& st) {
     for (size_t i = 0; i < st.channels.size(); ++i) {
         const auto& c = st.channels[i];
         char b[256];
+        std::string fx;
+        {
+            char t[64];
+            std::snprintf(t, sizeof t, ",\"fxEq\":%d,\"fxComp\":%d", c.fx.eqOn, c.fx.compOn); fx += t;
+#define X(k) std::snprintf(t, sizeof t, ",\"fx_" #k "\":%.4g", double(c.fx.k)); fx += t;
+            WM_FX_FIELDS(X)
+#undef X
+        }
         std::snprintf(b, sizeof b, "%s{\"name\":\"%s\",\"gain\":%.3f,\"pan\":%.3f,\"mute\":%d,\"solo\":%d,\"phaseL\":%d,\"phaseR\":%d,\"link\":%d}",
                       i ? "," : "", jsonEscape(c.name).c_str(), c.gainDb, c.pan, c.mute, c.solo, c.phaseL, c.phaseR, c.stereoLinked);
-        o += b;
+        std::string one = b;
+        one.pop_back();            // drop the closing brace, add fx fields, close again
+        o += one + fx + "}";
     }
     o += "],\"buses\":[";
     for (size_t i = 0; i < st.buses.size(); ++i) {
@@ -64,6 +79,11 @@ inline bool fromJson(const std::string& s, State& st) {
         if (detail::field(s, p, e, "phaseL", v)) c.phaseL = v == "1";
         if (detail::field(s, p, e, "phaseR", v)) c.phaseR = v == "1";
         if (detail::field(s, p, e, "link", v)) c.stereoLinked = v == "1";
+        if (detail::field(s, p, e, "fxEq", v)) c.fx.eqOn = v == "1";
+        if (detail::field(s, p, e, "fxComp", v)) c.fx.compOn = v == "1";
+#define X(k) if (detail::field(s, p, e, "fx_" #k, v)) c.fx.k = std::strtof(v.c_str(), nullptr);
+        WM_FX_FIELDS(X)
+#undef X
         n.channels.push_back(c); p = e;
     }
     for (size_t p = s.find('{', bs + 9); p != std::string::npos; p = s.find('{', p + 1)) {
@@ -75,6 +95,36 @@ inline bool fromJson(const std::string& s, State& st) {
         n.buses.push_back(b); p = e;
     }
     st = n;
+    return true;
+}
+
+// Workspace file = state + routing matrix. "routing" comes first and holds no nested braces.
+inline std::string toJson(const State& st, const RoutingMatrix& rt) {
+    std::string g;
+    for (size_t i = 0; i < rt.data().size(); ++i) { char t[32]; std::snprintf(t, sizeof t, "%s%.2f", i ? "," : "", double(rt.data()[i])); g += t; }
+    std::string body = toJson(st);   // starts with {"channels"
+    return "{\"routing\":{\"in\":" + std::to_string(rt.inputs()) + ",\"out\":" + std::to_string(rt.outputs()) + ",\"g\":[" + g + "]}," + body.substr(1);
+}
+inline bool fromJson(const std::string& s, State& st, RoutingMatrix& rt) {
+    if (!fromJson(s, st)) return false;
+    size_t r = s.find("\"routing\":{");
+    if (r == std::string::npos) return true;   // older file: keep current routing
+    size_t re = s.find('}', r);
+    std::string v; int in = 0, out = 0;
+    if (!detail::field(s, r, re, "in", v)) return false;
+    in = std::atoi(v.c_str());
+    if (!detail::field(s, r, re, "out", v)) return false;
+    out = std::atoi(v.c_str());
+    size_t gs = s.find("\"g\":[", r), ge = s.find(']', gs);
+    if (gs == std::string::npos || ge == std::string::npos) return false;
+    RoutingMatrix n(in, out);
+    size_t k = 0;
+    for (size_t p = gs + 5; p < ge && k < size_t(in) * size_t(out);) {
+        char* end; float f = std::strtof(s.c_str() + p, &end);
+        n.set(int(k / size_t(out)), int(k % size_t(out)), f); ++k;
+        p = size_t(end - s.c_str()) + 1;
+    }
+    rt = n;
     return true;
 }
 

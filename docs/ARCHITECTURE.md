@@ -23,4 +23,4 @@ Run the mixer in software: route PipeWire/JACK ports through our own mixer and u
 ## Audio thread rules (from the JUCE best-practices guide)
 - No allocation, locks, file I/O or logging in `AudioEngine::process`. All buffers are sized in `prepare()`.
 - Denormals are flushed to zero per block. Gain changes are smoothed (about 5 ms).
-- Known gap: the UI writes mixer state that the audio thread reads directly (plain floats and bools). Fine in practice on x86 and ARM, but the clean fix is a lock-free snapshot handed to the audio thread. Planned.
+- UI edits reach the audio thread through a lock-free triple buffer (`AudioEngine::sync`); meters come back through atomics. Tested with a two-thread race.

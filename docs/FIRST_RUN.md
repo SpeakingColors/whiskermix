@@ -11,4 +11,6 @@ Expect small compile fixes in `src/pipewire` and `src/app`: they were written wi
 3. Audio uses the system device (WASAPI/ASIO on Windows, CoreAudio on macOS). macOS uses the same option.
 
 # Known gaps
-- EQ/compressor settings are in undo and snapshots but not yet in the saved JSON file.
+
+- Routing changes are saved in workspace files but not yet part of undo.
+- Adding channels while audio runs is not supported yet (needs `prepare()` with audio stopped).
