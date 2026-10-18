@@ -3,6 +3,24 @@
 #include <cmath>
 #include <algorithm>
 #include <complex>
+#if defined(__SSE__) || defined(_M_X64)
+#include <xmmintrin.h>
+#endif
+
+namespace wm::engine {
+// Flush denormals to zero for the scope of one audio block (avoids CPU spikes in filter tails).
+struct NoDenormals {
+#if defined(__SSE__) || defined(_M_X64)
+    unsigned old = _mm_getcsr();
+    NoDenormals() { _mm_setcsr(old | 0x8040); }
+    ~NoDenormals() { _mm_setcsr(old); }
+#elif defined(__aarch64__)
+    unsigned long old;
+    NoDenormals() { asm volatile("mrs %0, fpcr" : "=r"(old)); unsigned long n = old | (1ul << 24); asm volatile("msr fpcr, %0" ::"r"(n)); }
+    ~NoDenormals() { asm volatile("msr fpcr, %0" ::"r"(old)); }
+#endif
+};
+}
 
 namespace wm::engine {
 

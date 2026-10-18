@@ -47,6 +47,7 @@ PipeWireMixer::~PipeWireMixer() { stop(); delete d_; }
 bool PipeWireMixer::start(engine::AudioEngine& eng, const std::vector<std::string>& inNames,
                           const std::vector<std::string>& busNames, const std::string& nodeName) {
     d_->eng = &eng;
+    eng.prepare(8192);   // PipeWire max quantum; allocate here, never in the process callback
     pw_init(nullptr, nullptr);
     d_->loop = pw_main_loop_new(nullptr);
     auto* props = pw_properties_new(

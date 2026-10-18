@@ -14,7 +14,7 @@ static void run(engine::AudioEngine& e, std::vector<std::vector<float>>& in, std
 
 int main() {
     mixer::Mixer m(2, 1); mixer::RoutingMatrix r(2, 1);
-    engine::AudioEngine e(m, r);
+    engine::AudioEngine e(m, r); e.prepare(256);
     std::vector<std::vector<float>> in(2, std::vector<float>(256, 0.5f)), out(2, std::vector<float>(256));
     run(e, in, out);
     CHECK(near(out[0][255], 0.0f, 1e-6f));            // nothing routed: silence
@@ -48,7 +48,7 @@ int main() {
         mixer::Mixer m2(1, 1); mixer::RoutingMatrix r2(1, 1); r2.set(0, 0, 0.0f);
         m2.state().channels[0].pan = -1.0f;
         auto& fx = m2.state().channels[0].fx; fx.eqOn = true; fx.midGain = 12; fx.midFreq = 1000; fx.midQ = 1;
-        engine::AudioEngine e2(m2, r2);
+        engine::AudioEngine e2(m2, r2); e2.prepare(4800);
         std::vector<float> sine(4800), o0(4800), o1(4800);
         for (size_t i = 0; i < sine.size(); ++i) sine[i] = 0.1f * std::sin(2 * 3.14159265f * 1000.0f * float(i) / 48000.0f);
         const float* ip2[1] = {sine.data()}; float* op2[2] = {o0.data(), o1.data()};
