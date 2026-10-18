@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 project(WhiskerMix VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
-option(WM_WINDOWS_TEST "JUCE audio device instead of PipeWire/libusb (for testing on Windows/macOS)" OFF)
+option(WM_WINDOWS_TEST "JUCE audio device instead of PipeWire/libusb (Windows and macOS builds, same UI)" OFF)
 option(WM_BUILD_APP "Build the JUCE + PipeWire app" OFF)
 
 enable_testing()

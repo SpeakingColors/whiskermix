@@ -43,6 +43,28 @@ int main() {
     std::vector<const float*> ip{in[0].data(), in[1].data()}; std::vector<float*> op{out[0].data(), out[1].data()};
     e.process(ip.data(), op.data(), 256);
     CHECK(out[0][0] < out[0][255]);
+    // EQ: +12 dB mid at 1 kHz boosts a 1 kHz sine by ~4x; low cut removes DC
+    {
+        mixer::Mixer m2(1, 1); mixer::RoutingMatrix r2(1, 1); r2.set(0, 0, 0.0f);
+        m2.state().channels[0].pan = -1.0f;
+        auto& fx = m2.state().channels[0].fx; fx.eqOn = true; fx.midGain = 12; fx.midFreq = 1000; fx.midQ = 1;
+        engine::AudioEngine e2(m2, r2);
+        std::vector<float> sine(4800), o0(4800), o1(4800);
+        for (size_t i = 0; i < sine.size(); ++i) sine[i] = 0.1f * std::sin(2 * 3.14159265f * 1000.0f * float(i) / 48000.0f);
+        const float* ip2[1] = {sine.data()}; float* op2[2] = {o0.data(), o1.data()};
+        for (int k = 0; k < 4; ++k) e2.process(ip2, op2, 4800);
+        float pk = 0; for (size_t i = 2400; i < 4800; ++i) pk = std::max(pk, std::fabs(o0[i]));
+        CHECK(near(pk, 0.1f * 3.98f, 0.03f));
+        fx.eqOn = false; fx.compOn = true; fx.threshDb = -20; fx.ratio = 4; fx.kneeDb = 0; fx.attackMs = 1; fx.releaseMs = 50;
+        for (int k = 0; k < 6; ++k) e2.process(ip2, op2, 4800);   // 0.1 peak = -20 dB: no reduction
+        CHECK(near(e2.gainReductionDb(0), 0.0f, 0.5f));
+        for (auto& v : sine) v *= 5.0f;                           // -6 dB: 14 over, out = -20+3.5 -> GR ~ -10.5
+        for (int k = 0; k < 6; ++k) e2.process(ip2, op2, 4800);
+        CHECK(near(e2.gainReductionDb(0), -10.5f, 1.0f));
+        engine::Biquad bq = engine::Biquad::peak(48000, 1000, 12, 1);
+        CHECK(near(bq.magDb(48000, 1000), 12.0f, 0.1f));
+        CHECK(near(engine::compOutDb(fx, -8), -20 + 12 / 4.0f, 0.01f));
+    }
     if (!fails) std::puts("engine_test: all passed");
     return fails ? 1 : 0;
 }

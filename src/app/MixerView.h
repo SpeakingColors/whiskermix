@@ -55,7 +55,21 @@ public:
         for (auto* x : std::initializer_list<juce::Component*>{&name, &fader, &pan, &meter}) addAndMakeVisible(x);
     }
     void setMeter(float db) { meter.setDb(db); }
-    void paint(juce::Graphics& g) override { g.setColour(col::panel); g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(2), 6); }
+    std::function<void(int)> onSelect;
+    bool selected = false;
+    void mouseDown(const juce::MouseEvent&) override { if (onSelect) onSelect(c); }
+    // Re-read all controls from the mixer state (after undo, recall or load).
+    void refresh() {
+        auto& s = mx.state().channels[size_t(c)];
+        name.setText(s.name, juce::dontSendNotification);
+        fader.setValue(s.gainDb, juce::dontSendNotification); pan.setValue(s.pan, juce::dontSendNotification);
+        mute.setToggleState(s.mute, juce::dontSendNotification); solo.setToggleState(s.solo, juce::dontSendNotification);
+        phase.setToggleState(s.phaseL, juce::dontSendNotification);
+    }
+    void paint(juce::Graphics& g) override {
+        g.setColour(col::panel); g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(2), 6);
+        if (selected) { g.setColour(col::teal); g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(2), 6, 2); }
+    }
     void resized() override {
         auto r = getLocalBounds().reduced(8);
         name.setBounds(r.removeFromTop(22));
@@ -76,6 +90,7 @@ public:
         for (size_t i = 0; i < m.state().channels.size(); ++i) {
             if (!r.routed(int(i), 0)) r.set(int(i), 0, 0.0f);   // route every channel to bus 1 by default
             strips.push_back(std::make_unique<Strip>(m, r, int(i)));
+            strips.back()->onSelect = [this](int c) { select(c); };
             addAndMakeVisible(*strips.back());
         }
         main.setSliderStyle(juce::Slider::LinearVertical); main.setRange(-60.0, 6.0, 0.1);
@@ -86,7 +101,20 @@ public:
         dim.setButtonText("DIM"); dim.setClickingTogglesState(true); dim.setColour(juce::TextButton::buttonOnColourId, col::orange);
         dim.onClick = [this] { mx.state().buses[0].dim = dim.getToggleState(); };
         addAndMakeVisible(main); addAndMakeVisible(dim); addAndMakeVisible(mainL); addAndMakeVisible(mainR);
+        select(0);
         startTimerHz(30);
+    }
+    int selectedChannel = 0;
+    std::function<void(int)> onSelect;
+    void select(int c) {
+        selectedChannel = c;
+        for (size_t i = 0; i < strips.size(); ++i) { strips[i]->selected = int(i) == c; strips[i]->repaint(); }
+        if (onSelect) onSelect(c);
+    }
+    void refreshAll() {
+        for (auto& s : strips) s->refresh();
+        main.setValue(mx.state().buses[0].volumeDb, juce::dontSendNotification);
+        dim.setToggleState(mx.state().buses[0].dim, juce::dontSendNotification);
     }
     void paint(juce::Graphics& g) override { g.fillAll(col::bg); }
     void resized() override {

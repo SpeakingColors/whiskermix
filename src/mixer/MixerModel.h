@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include "../backends/digiface/DigifaceCodec.h"
+#include "../engine/Dsp.h"
 
 namespace wm::mixer {
 
@@ -16,6 +17,7 @@ struct Channel {
     bool phaseL = false;
     bool phaseR = false;
     bool stereoLinked = false;  // linked with the next channel
+    wm::engine::FxParams fx;
 };
 
 struct Bus {

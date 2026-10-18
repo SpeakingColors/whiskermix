@@ -9,7 +9,7 @@
 #include "../pipewire/PipeWireMixer.h"
 #endif
 #include "../mixer/StateJson.h"
-#include "MixerView.h"
+#include "AppView.h"
 
 class MainWindow : public juce::DocumentWindow {
 public:
@@ -41,7 +41,7 @@ public:
 #else
         if (pw.start(*engine, ins, buses)) audio = std::thread([this] { pw.run(); });
 #endif
-        window = std::make_unique<MainWindow>(new wmui::MixerView(*mixer, *routing, *engine));
+        window = std::make_unique<MainWindow>(new wmui::AppView(*mixer, *routing, *engine));
     }
     void shutdown() override {
 #ifdef WM_JUCE_AUDIO
