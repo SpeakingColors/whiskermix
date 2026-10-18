@@ -11,6 +11,7 @@
 #include "../mixer/MixerModel.h"
 #include "../mixer/RoutingMatrix.h"
 #include "Dsp.h"
+#include "Reverb.h"
 #include "TripleBuffer.h"
 
 namespace wm::engine {
@@ -38,6 +39,9 @@ public:
         peakOut_.reset(new std::atomic<float>[kMaxBuses * 2]);
         for (size_t i = 0; i < kMaxChannels; ++i) { peakIn_[i] = 0; gr_[i] = 0; }
         for (size_t i = 0; i < kMaxBuses * 2; ++i) peakOut_[i] = 0;
+        rev_.assign(kMaxBuses, ReverbUnit{}); dly_.assign(kMaxBuses, ShimmerDelay{});
+        for (auto& r : rev_) r.prepare(sr_);
+        for (auto& d : dly_) d.prepare(sr_);
         nc_ = 0; nb_ = 0;
     }
     // UI thread: publish the current mixer state to the audio thread (cheap; call after edits, e.g. every 16 ms).
@@ -97,6 +101,15 @@ public:
         for (size_t b = 0; b < nb; ++b) {
             const auto& bus = st.buses[b];
             float v = dbToLin(bus.volumeDb + (bus.dim ? digiface::kDimDb : 0.0f));
+            if (bus.delayOn || bus.reverbOn) {
+                float *L = out[b * 2], *R = out[b * 2 + 1];
+                for (int i = 0; i < n; ++i) {
+                    float l = L[i], r = R[i];
+                    if (bus.delayOn) dly_[b].process(l, r, l, r, bus.delay);
+                    if (bus.reverbOn) rev_[b].process(l, r, l, r, bus.reverb);
+                    L[i] = l; R[i] = r;
+                }
+            }
             for (size_t k = 0; k < 2; ++k) {
                 float* o = out[b * 2 + k];
                 float pk = 0;
@@ -121,6 +134,8 @@ private:
     size_t nc_ = 0, nb_ = 0;   // counts the DSP state is currently valid for (audio thread only)
     std::vector<float> cur_;
     std::vector<ChannelFx> fx_;
+    std::vector<ReverbUnit> rev_;
+    std::vector<ShimmerDelay> dly_;
     std::vector<std::vector<float>> buf_;
     std::unique_ptr<std::atomic<float>[]> peakIn_, peakOut_, gr_;
 };

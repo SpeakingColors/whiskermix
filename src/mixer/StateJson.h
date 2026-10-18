@@ -12,6 +12,10 @@ namespace wm::mixer {
 #define WM_FX_FIELDS(X) X(lowCutHz) X(lowGain) X(lowFreq) X(midGain) X(midFreq) X(midQ) X(highGain) X(highFreq) \
     X(threshDb) X(ratio) X(attackMs) X(releaseMs) X(makeupDb) X(kneeDb)
 
+#define WM_BUS_FIELDS(X) X(reverb.p.decay) X(reverb.p.dampHz) X(reverb.p.preDelayMs) X(reverb.p.size) X(reverb.p.modDepth) \
+    X(reverb.shimmerSemis) X(reverb.shimmerAmount) X(reverb.mix) X(delay.timeMs) X(delay.feedback) X(delay.shiftSemis) \
+    X(delay.dampHz) X(delay.mix) X(delay.shimmerAmount)
+
 inline std::string jsonEscape(const std::string& s) {
     std::string o;
     for (char c : s) { if (c == '"' || c == '\\') o.push_back('\\'); o.push_back(c); }
@@ -40,9 +44,15 @@ inline std::string toJson(const State& st) {
     o += "],\"buses\":[";
     for (size_t i = 0; i < st.buses.size(); ++i) {
         char b[192];
-        std::snprintf(b, sizeof b, "%s{\"name\":\"%s\",\"volume\":%.3f,\"dim\":%d}", i ? "," : "",
-                      jsonEscape(st.buses[i].name).c_str(), st.buses[i].volumeDb, st.buses[i].dim);
+        const auto& bu = st.buses[i];
+        std::snprintf(b, sizeof b, "%s{\"name\":\"%s\",\"volume\":%.3f,\"dim\":%d,\"rvOn\":%d,\"dlOn\":%d,\"rvType\":%d", i ? "," : "",
+                      jsonEscape(bu.name).c_str(), bu.volumeDb, bu.dim, bu.reverbOn, bu.delayOn, int(bu.reverb.type));
         o += b;
+        char t[64];
+#define X(k) std::snprintf(t, sizeof t, ",\"bx_" #k "\":%.4g", double(bu.k)); o += t;
+        WM_BUS_FIELDS(X)
+#undef X
+        o += "}";
     }
     return o + "]}";
 }
@@ -92,6 +102,12 @@ inline bool fromJson(const std::string& s, State& st) {
         if (detail::field(s, p, e, "name", v)) b.name = v;
         if (detail::field(s, p, e, "volume", v)) b.volumeDb = std::strtof(v.c_str(), nullptr);
         if (detail::field(s, p, e, "dim", v)) b.dim = v == "1";
+        if (detail::field(s, p, e, "rvOn", v)) b.reverbOn = v == "1";
+        if (detail::field(s, p, e, "dlOn", v)) b.delayOn = v == "1";
+        if (detail::field(s, p, e, "rvType", v)) b.reverb.type = wm::engine::ReverbType(std::atoi(v.c_str()));
+#define X(k) if (detail::field(s, p, e, "bx_" #k, v)) b.k = std::strtof(v.c_str(), nullptr);
+        WM_BUS_FIELDS(X)
+#undef X
         n.buses.push_back(b); p = e;
     }
     st = n;

@@ -5,7 +5,7 @@ option(WM_WINDOWS_TEST "JUCE audio device instead of PipeWire/libusb (Windows an
 option(WM_BUILD_APP "Build the JUCE + PipeWire app" OFF)
 
 enable_testing()
-foreach(t digiface_codec_test names_test mixer_test state_test engine_test)
+foreach(t digiface_codec_test names_test mixer_test state_test engine_test reverb_test)
   add_executable(${t} tests/${t}.cpp)
   add_test(NAME ${t} COMMAND ${t})
 endforeach()

@@ -5,6 +5,7 @@
 #include <map>
 #include "../backends/digiface/DigifaceCodec.h"
 #include "../engine/Dsp.h"
+#include "../engine/Reverb.h"
 
 namespace wm::mixer {
 
@@ -24,6 +25,10 @@ struct Bus {
     std::string name;
     float volumeDb = 0.0f;
     bool dim = false;
+    // Bus effects (use a dedicated bus as an FX return): reverb/shimmer reverb and shimmer delay.
+    bool reverbOn = false, delayOn = false;
+    wm::engine::ReverbSettings reverb;
+    wm::engine::ShimmerDelayParams delay;
 };
 
 // A snapshot is a full copy of the state, so recalling it is exact.

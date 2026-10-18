@@ -85,6 +85,18 @@ int main() {
         for (int k = 0; k < 40; ++k) e3.process(ip1, op, 256);
         CHECK(near(o0[255], 0.5f * 0.7071f));
     }
+    // Bus reverb: tail continues after the input stops
+    {
+        mixer::Mixer m4(1, 1); mixer::RoutingMatrix r4(1, 1); r4.set(0, 0, 0.0f);
+        m4.state().buses[0].reverbOn = true; m4.state().buses[0].reverb.mix = 1.0f; m4.state().buses[0].reverb.type = wm::engine::ReverbType::Hall;
+        engine::AudioEngine e4(m4, r4); e4.prepare(512); e4.sync();
+        std::vector<float> a(512, 0.5f), o0(512), o1(512);
+        const float* ip[1] = {a.data()}; float* op[2] = {o0.data(), o1.data()};
+        for (int k = 0; k < 10; ++k) e4.process(ip, op, 512);   // let the gain ramp settle, feed signal
+        std::fill(a.begin(), a.end(), 0.0f);
+        float tail = 0; for (int k = 0; k < 40; ++k) { e4.process(ip, op, 512); for (float v : o0) tail += v * v; }
+        CHECK(tail > 1e-5f);
+    }
     // Triple buffer under a real writer/reader race: every block read must be internally consistent.
     {
         struct P { int a = 0, b = 0, c = 0; };

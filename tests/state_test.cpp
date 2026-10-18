@@ -25,6 +25,13 @@ int main() {
     CHECK(std::abs(b2.channels[0].fx.threshDb + 24.0f) < 0.01f && b2.channels[0].fx.ratio == 6.0f && b2.channels[0].fx.lowCutHz == 80.0f);
     CHECK(!b2.channels[1].fx.eqOn && b2.channels[1].fx.ratio == 3.0f);
     CHECK(r2.inputs() == 2 && r2.outputs() == 1 && std::abs(r2.get(0, 0) + 3.0f) < 0.01f && std::abs(r2.get(1, 0) - 2.5f) < 0.01f);
+    m.state().buses[0].reverbOn = true; m.state().buses[0].reverb.type = wm::engine::ReverbType::ShimmerHall;
+    m.state().buses[0].reverb.p.decay = 0.77f; m.state().buses[0].reverb.shimmerSemis = 7.0f; m.state().buses[0].delayOn = true;
+    m.state().buses[0].delay.timeMs = 333.0f; m.state().buses[0].delay.shiftSemis = 12.0f;
+    State b3; CHECK(fromJson(toJson(m.state()), b3));
+    CHECK(b3.buses[0].reverbOn && b3.buses[0].delayOn && b3.buses[0].reverb.type == wm::engine::ReverbType::ShimmerHall);
+    CHECK(std::abs(b3.buses[0].reverb.p.decay - 0.77f) < 0.001f && std::abs(b3.buses[0].reverb.shimmerSemis - 7.0f) < 0.001f);
+    CHECK(std::abs(b3.buses[0].delay.timeMs - 333.0f) < 0.01f);
     UndoStack u;
     State before = m.state(); u.push(before);
     m.state().channels[0].gainDb = 0.0f;
