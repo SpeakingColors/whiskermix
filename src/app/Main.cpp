@@ -9,11 +9,13 @@
 #include "../pipewire/PipeWireMixer.h"
 #endif
 #include "../mixer/StateJson.h"
+#include "MixerView.h"
 
 class MainWindow : public juce::DocumentWindow {
 public:
-    MainWindow() : DocumentWindow("WhiskerMix", juce::Colour(0xff1b1b1f), allButtons) {
+    MainWindow(juce::Component* content) : DocumentWindow("WhiskerMix", juce::Colour(0xff1b1b1f), allButtons) {
         setUsingNativeTitleBar(true);
+        setContentOwned(content, true);
         setResizable(true, true);
         centreWithSize(1280, 800);
         setVisible(true);
@@ -39,7 +41,7 @@ public:
 #else
         if (pw.start(*engine, ins, buses)) audio = std::thread([this] { pw.run(); });
 #endif
-        window = std::make_unique<MainWindow>();
+        window = std::make_unique<MainWindow>(new wmui::MixerView(*mixer, *routing, *engine));
     }
     void shutdown() override {
 #ifdef WM_JUCE_AUDIO
