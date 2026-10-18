@@ -1,0 +1,30 @@
+# Draft Flatpak manifest. Untested. JUCE is fetched as a source so the build works offline.
+app-id: io.github.speakingcolors.WhiskerMix
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: WhiskerMix
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --device=all            # raw USB for the Digiface (libusb)
+  - --filesystem=xdg-run/pipewire-0
+  - --filesystem=xdg-config/wireplumber:create   # name-sync rules
+modules:
+  - name: libusb
+    buildsystem: autotools
+    sources:
+      - type: archive
+        url: https://github.com/libusb/libusb/releases/download/v1.0.27/libusb-1.0.27.tar.bz2
+        sha256: FILL_ME   # verify before first build
+  - name: whiskermix
+    buildsystem: cmake-ninja
+    config-opts: [-DWM_BUILD_APP=ON]
+    sources:
+      - type: dir
+        path: ../..
+      - type: git
+        url: https://github.com/juce-framework/JUCE.git
+        tag: 8.0.4
+        dest: third_party/JUCE

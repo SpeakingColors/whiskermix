@@ -1,0 +1,22 @@
+cmake_minimum_required(VERSION 3.22)
+project(WhiskerMix VERSION 0.1.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+option(WM_BUILD_APP "Build the JUCE + PipeWire app" OFF)
+
+enable_testing()
+foreach(t digiface_codec_test names_test mixer_test state_test engine_test)
+  add_executable(${t} tests/${t}.cpp)
+  add_test(NAME ${t} COMMAND ${t})
+endforeach()
+
+if(WM_BUILD_APP)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(PW REQUIRED libpipewire-0.3)
+  pkg_check_modules(USB REQUIRED libusb-1.0)
+  add_subdirectory(third_party/JUCE)   # JUCE added as a vendored source (needed for offline Flatpak builds)
+  juce_add_gui_app(WhiskerMix PRODUCT_NAME "WhiskerMix")
+  target_sources(WhiskerMix PRIVATE src/app/Main.cpp src/pipewire/PipeWireMixer.cpp
+                 src/backends/digiface/LibusbTransport.cpp)
+  target_include_directories(WhiskerMix PRIVATE ${PW_INCLUDE_DIRS} ${USB_INCLUDE_DIRS})
+  target_link_libraries(WhiskerMix PRIVATE juce::juce_gui_extra ${PW_LIBRARIES} ${USB_LIBRARIES})
+endif()
