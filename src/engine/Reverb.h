@@ -200,7 +200,7 @@ private:
     float sr_ = 48000, lp_[2] = {}; DelayLine dl_[2]; PitchShifter ps_[2];
 };
 
-enum class ReverbType { Plate, Hall, ShimmerPlate, ShimmerHall, Lush };
+enum class ReverbType { Plate, Hall, ShimmerPlate, ShimmerHall, Velvet };
 
 struct ReverbSettings {
     ReverbType type = ReverbType::Plate;
@@ -209,9 +209,9 @@ struct ReverbSettings {
     float mix = 0.3f;
 };
 
-// Lush: two hall networks of different sizes in parallel with extra modulation. Denser and smoother than Hall.
+// Velvet: two hall networks of different sizes in parallel with extra modulation. Denser and smoother than Hall.
 // Starting point for a "big synth reverb" character; to be tuned by ear against reference recordings.
-class LushReverb {
+class VelvetReverb {
 public:
     void prepare(float sr) { a_.prepare(sr); b_.prepare(sr); }
     void reset() { a_.reset(); b_.reset(); }
@@ -230,8 +230,8 @@ private:
 // One reverb unit with all types. Shimmer = tail is pitch shifted and fed back into the reverb input.
 class ReverbUnit {
 public:
-    void prepare(float sr) { plate_.prepare(sr); hall_.prepare(sr); lush_.prepare(sr); ps_[0].prepare(sr, 80); ps_[1].prepare(sr, 80); reset(); }
-    void reset() { plate_.reset(); hall_.reset(); lush_.reset(); ps_[0].reset(); ps_[1].reset(); last_[0] = last_[1] = 0; }
+    void prepare(float sr) { plate_.prepare(sr); hall_.prepare(sr); velvet_.prepare(sr); ps_[0].prepare(sr, 80); ps_[1].prepare(sr, 80); reset(); }
+    void reset() { plate_.reset(); hall_.reset(); velvet_.reset(); ps_[0].reset(); ps_[1].reset(); last_[0] = last_[1] = 0; }
     void process(float inL, float inR, float& outL, float& outR, const ReverbSettings& s) {
         bool shim = s.type == ReverbType::ShimmerPlate || s.type == ReverbType::ShimmerHall;
         float ratio = std::pow(2.0f, s.shimmerSemis / 12.0f);
@@ -244,14 +244,14 @@ public:
         }
         float wl, wr;
         if (s.type == ReverbType::Plate || s.type == ReverbType::ShimmerPlate) plate_.process(fl, fr, wl, wr, s.p);
-        else if (s.type == ReverbType::Lush) lush_.process(fl, fr, wl, wr, s.p);
+        else if (s.type == ReverbType::Velvet) velvet_.process(fl, fr, wl, wr, s.p);
         else hall_.process(fl, fr, wl, wr, s.p);
         last_[0] = std::tanh(wl); last_[1] = std::tanh(wr);
         outL = inL * (1 - s.mix) + wl * s.mix;
         outR = inR * (1 - s.mix) + wr * s.mix;
     }
 private:
-    PlateReverb plate_; HallReverb hall_; LushReverb lush_; PitchShifter ps_[2]; float last_[2] = {};
+    PlateReverb plate_; HallReverb hall_; VelvetReverb velvet_; PitchShifter ps_[2]; float last_[2] = {};
 };
 
 }  // namespace wm::engine

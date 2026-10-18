@@ -33,7 +33,7 @@ int main() {
     for (int type = 0; type < 3; ++type) {
         for (int pass = 0; pass < 2; ++pass) {
             ReverbUnit r; r.prepare(sr);
-            ReverbSettings s; s.type = type == 2 ? ReverbType::Lush : type ? ReverbType::Hall : ReverbType::Plate; s.mix = 1.0f; s.p.decay = pass ? 0.9f : 0.3f;
+            ReverbSettings s; s.type = type == 2 ? ReverbType::Velvet : type ? ReverbType::Hall : ReverbType::Plate; s.mix = 1.0f; s.p.decay = pass ? 0.9f : 0.3f;
             std::vector<float> L(96000), R(96000);
             for (size_t i = 0; i < L.size(); ++i) r.process(i == 0 ? 1.0f : 0.0f, i == 0 ? 1.0f : 0.0f, L[i], R[i], s);
             bool finite = true; for (float v : L) finite = finite && std::isfinite(v);

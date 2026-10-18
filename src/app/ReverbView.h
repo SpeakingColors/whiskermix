@@ -53,7 +53,7 @@ public:
         busBox.addItem("Bus 1", 1); busBox.addItem("Bus 2", 2); busBox.setSelectedId(1, juce::dontSendNotification);
         busBox.onChange = [this] { refresh(); };
         addAndMakeVisible(busBox);
-        const char* names[] = {"Plate", "Hall", "Shimmer Plate", "Shimmer Hall", "Lush"};
+        const char* names[] = {"Plate", "Hall", "Shimmer Plate", "Shimmer Hall", "Velvet"};
         for (int i = 0; i < 5; ++i) {
             auto& b = typeB[i]; b.setButtonText(names[i]); b.setRadioGroupId(77); b.setClickingTogglesState(true);
             b.setColour(juce::TextButton::buttonOnColourId, col::violet);

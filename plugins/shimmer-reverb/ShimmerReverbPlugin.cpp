@@ -15,7 +15,7 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout layout() {
         juce::AudioProcessorValueTreeState::ParameterLayout l;
         l.add(std::make_unique<juce::AudioParameterChoice>(juce::ParameterID{"type", 1}, "Type",
-              juce::StringArray{"Plate", "Hall", "Shimmer Plate", "Shimmer Hall", "Lush"}, 3));
+              juce::StringArray{"Plate", "Hall", "Shimmer Plate", "Shimmer Hall", "Velvet"}, 3));
         l.add(floatParam("decay", "Decay", 0, 1, 0.6f));
         l.add(floatParam("damp", "Damping (Hz)", 500, 16000, 6000, 3000));
         l.add(floatParam("predelay", "Pre-delay (ms)", 0, 250, 20, 40));
