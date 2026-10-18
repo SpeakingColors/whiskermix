@@ -17,6 +17,13 @@ public:
         g.setColour(juce::Colours::white.withAlpha(0.08f));
         for (float f : {100.f, 1000.f, 10000.f}) g.drawVerticalLine(int(xOf(f)), 0, r.getBottom());
         for (float d : {-12.f, 0.f, 12.f}) g.drawHorizontalLine(int(yOf(d)), 0, r.getRight());
+        g.setFont(11.0f);
+        for (float f : {50.f, 100.f, 500.f, 1000.f, 5000.f, 10000.f}) {
+            g.setColour(col::yellow.withAlpha(0.85f));
+            g.drawText(f >= 1000.f ? juce::String(int(f / 1000.f)) + "k" : juce::String(int(f)), int(xOf(f)) + 2, getHeight() - 16, 34, 14, juce::Justification::left);
+        }
+        for (float d : {-12.f, 0.f, 12.f}) { g.setColour(col::orange.withAlpha(0.9f)); g.drawText((d > 0 ? "+" : "") + juce::String(int(d)) + " dB", 4, int(yOf(d)) - 14, 50, 12, juce::Justification::left); }
+        g.setColour(col::title); g.setFont(12.0f); g.drawText("EQ", getLocalBounds().removeFromTop(18).withTrimmedRight(8), juce::Justification::right);
         if (!p) return;
         juce::Path path;
         for (int x = 0; x < getWidth(); x += 2) {
@@ -79,6 +86,14 @@ public:
         auto r = getLocalBounds().toFloat();
         g.setColour(col::bg); g.fillRoundedRectangle(r, 6);
         g.setColour(juce::Colours::white.withAlpha(0.1f)); g.drawLine(0, r.getBottom(), r.getRight(), 0);   // 1:1 line
+        g.setFont(11.0f);
+        for (float d : {-48.f, -36.f, -24.f, -12.f, 0.f}) {
+            g.setColour(juce::Colours::white.withAlpha(0.06f)); g.drawVerticalLine(int(xOf(d)), 0, r.getBottom()); g.drawHorizontalLine(int(yOf(d)), 0, r.getRight());
+            g.setColour(col::yellow.withAlpha(0.85f)); g.drawText(juce::String(int(d)), int(xOf(d)) - 24, getHeight() - 16, 22, 14, juce::Justification::right);
+            g.setColour(col::orange.withAlpha(0.9f)); g.drawText(juce::String(int(d)), 3, int(yOf(d)) - 7, 24, 14, juce::Justification::left);
+        }
+        g.setColour(col::yellow); g.drawText("IN dB", getLocalBounds().removeFromBottom(16).withTrimmedRight(26), juce::Justification::centredRight);
+        g.setColour(col::orange); g.drawText("OUT dB", getLocalBounds().withTrimmedTop(20).removeFromTop(14).withX(30), juce::Justification::left);
         if (!p) return;
         juce::Path path;
         for (int x = 0; x < getWidth(); x += 2) {
@@ -88,7 +103,9 @@ public:
         g.setColour(p->compOn ? col::orange : col::orange.withAlpha(0.3f)); g.strokePath(path, juce::PathStrokeType(2.0f));
         g.setColour(col::yellow); g.fillEllipse(xOf(p->threshDb) - 6, yOf(p->threshDb) - 6, 12, 12);
         g.setColour(col::pink); g.fillEllipse(xOf(-6) - 6, yOf(wm::engine::compOutDb(*p, -6)) - 6, 12, 12);
-        if (grDb) { g.setColour(col::teal); g.drawText(juce::String(grDb(), 1) + " dB", getLocalBounds().removeFromTop(18), juce::Justification::right); }
+        g.setColour(col::title); g.setFont(12.0f);
+        g.drawText("COMPRESSOR   " + juce::String(p->threshDb, 0) + " dB  " + juce::String(p->ratio, 1) + ":1", getLocalBounds().removeFromTop(18).withTrimmedLeft(30), juce::Justification::centredLeft);
+        if (grDb) { g.setColour(col::teal); g.drawText("GR " + juce::String(grDb(), 1) + " dB", getLocalBounds().removeFromTop(18).withTrimmedRight(8), juce::Justification::right); }
     }
     void mouseDown(const juce::MouseEvent& e) override {
         auto* p = params ? params() : nullptr; if (!p) return;
