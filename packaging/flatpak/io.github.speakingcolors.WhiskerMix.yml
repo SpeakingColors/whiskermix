@@ -26,5 +26,5 @@ modules:
         path: ../..
       - type: git
         url: https://github.com/juce-framework/JUCE.git
-        tag: 8.0.4
+        tag: 8.0.12
         dest: third_party/JUCE

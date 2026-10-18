@@ -6,7 +6,7 @@
 Expect small compile fixes in `src/pipewire` and `src/app`: they were written without headers to compile against.
 
 # Windows or macOS (UI and mixing test, no Digiface USB control, no PipeWire)
-1. Get JUCE 8.0.4 into `third_party/JUCE` (`git clone --depth 1 --branch 8.0.4 https://github.com/juce-framework/JUCE.git third_party/JUCE`)
+1. Get JUCE 8.0.12 into `third_party/JUCE` (`git clone --depth 1 --branch 8.0.12 https://github.com/juce-framework/JUCE.git third_party/JUCE`)
 2. `cmake -B build -DWM_BUILD_APP=ON -DWM_WINDOWS_TEST=ON` then `cmake --build build --config Release`
 3. Audio uses the system device (WASAPI/ASIO on Windows, CoreAudio on macOS). macOS uses the same option.
 
