@@ -1,6 +1,6 @@
 // WhiskerMix app skeleton (JUCE). NOT built yet: needs JUCE and PipeWire. Wires the tested core together.
 // UI layer will load the mockup visuals later; this file only proves the plumbing.
-#include <juce_gui_extra/juce_gui_extra.h>
+#include <juce_gui_basics/juce_gui_basics.h>
 #include <thread>
 #include "../engine/AudioEngine.h"
 #ifdef WM_JUCE_AUDIO
