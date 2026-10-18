@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 project(WhiskerMix VERSION 0.1.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 option(WM_WINDOWS_TEST "JUCE audio device instead of PipeWire/libusb (Windows and macOS builds, same UI)" OFF)
+option(WM_BUILD_PLUGINS "Build the standalone effect plugins (VST3 + Standalone)" OFF)
 option(WM_BUILD_APP "Build the JUCE + PipeWire app" OFF)
 
 enable_testing()
@@ -28,4 +29,29 @@ if(WM_BUILD_APP)
     target_include_directories(WhiskerMix PRIVATE ${PW_INCLUDE_DIRS} ${USB_INCLUDE_DIRS})
     target_link_libraries(WhiskerMix PRIVATE ${PW_LIBRARIES} ${USB_LIBRARIES})
   endif()
+endif()
+
+if(WM_BUILD_PLUGINS)
+  if(NOT TARGET juce::juce_audio_processors)
+    add_subdirectory(third_party/JUCE)
+  endif()
+  foreach(plug ShimmerDelay ShimmerReverb)
+    if(plug STREQUAL "ShimmerDelay")
+      set(src plugins/shimmer-delay/ShimmerDelayPlugin.cpp)
+      set(code Shdl)
+    else()
+      set(src plugins/shimmer-reverb/ShimmerReverbPlugin.cpp)
+      set(code Shrv)
+    endif()
+    juce_add_plugin(${plug}
+      PRODUCT_NAME "${plug}"
+      COMPANY_NAME "SpeakingColors"
+      PLUGIN_MANUFACTURER_CODE Spco
+      PLUGIN_CODE ${code}
+      FORMATS VST3 Standalone
+      IS_SYNTH FALSE NEEDS_MIDI_INPUT FALSE)
+    target_sources(${plug} PRIVATE ${src})
+    target_compile_definitions(${plug} PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
+    target_link_libraries(${plug} PRIVATE juce::juce_audio_utils juce::juce_audio_processors juce::juce_recommended_config_flags)
+  endforeach()
 endif()

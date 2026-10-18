@@ -38,3 +38,27 @@ jobs:
       - if: failure()
         shell: bash
         run: grep -E "error|Error|CMake Error" build.log | head -15 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+  plugins-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ pkg-config libasound2-dev libx11-dev libxinerama-dev libxext-dev \
+            libxrandr-dev libxcursor-dev libfreetype-dev libfontconfig1-dev libgl-dev
+      - run: git clone --depth 1 --branch 8.0.12 https://github.com/juce-framework/JUCE.git third_party/JUCE
+      - shell: bash
+        run: |
+          set -o pipefail
+          (cmake -B build -G Ninja -DWM_BUILD_PLUGINS=ON && cmake --build build) 2>&1 | tee build.log
+      - if: failure()
+        shell: bash
+        run: grep -E "error|Error|CMake Error" build.log | head -15 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shimmer-plugins-linux
+          path: |
+            build/ShimmerDelay_artefacts/**/VST3/**
+            build/ShimmerReverb_artefacts/**/VST3/**
+            build/ShimmerDelay_artefacts/**/Standalone/**
+            build/ShimmerReverb_artefacts/**/Standalone/**
