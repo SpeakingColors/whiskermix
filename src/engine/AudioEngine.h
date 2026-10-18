@@ -33,6 +33,7 @@ public:
         maxFrames_ = maxFrames;
         for (int i = 0; i < 3; ++i) { snaps_.all(i).state = mx_.state(); snaps_.all(i).routing = rt_; }
         cur_.assign(kMaxChannels * kMaxBuses * 2, 0.0f);
+        curSend_.assign(kMaxChannels * 2, 0.0f); wl_.assign(size_t(maxFrames), 0.0f); wr_.assign(size_t(maxFrames), 0.0f); srcp_.assign(kMaxChannels, nullptr);
         fx_.assign(kMaxChannels, ChannelFx{});
         buf_.assign(kMaxChannels, std::vector<float>(size_t(maxFrames)));
         peakIn_.reset(new std::atomic<float>[kMaxChannels]); gr_.reset(new std::atomic<float>[kMaxChannels]);
@@ -70,32 +71,70 @@ public:
         for (size_t o = 0; o < nb * 2; ++o) std::fill(out[o], out[o] + n, 0.0f);
         bool anySolo = false;
         for (const auto& c : st.channels) anySolo = anySolo || c.solo;
+        // Pass 1: peaks and channel EQ/compressor.
         for (size_t c = 0; c < nc; ++c) {
             const auto& ch = st.channels[c];
             float pk = 0;
             for (int i = 0; i < n; ++i) pk = std::max(pk, std::fabs(in[c][i]));
             peakIn_[c].store(pk, std::memory_order_relaxed);
-            const float* src = in[c];
+            srcp_[c] = in[c];
             if (ch.fx.eqOn || ch.fx.compOn) {
                 fx_[c].process(ch.fx, sr_, in[c], buf_[c].data(), n);
-                src = buf_[c].data();
+                srcp_[c] = buf_[c].data();
                 gr_[c].store(fx_[c].gainReductionDb(), std::memory_order_relaxed);
             } else gr_[c].store(0.0f, std::memory_order_relaxed);
+        }
+        // Pass 2: routing. A channel with "stereoLinked" is the left of a pair with the next channel (the right one
+        // follows the left one's fader, mute, solo, pan (balance), width and M/S settings).
+        bool skip = false;
+        for (size_t c = 0; c < nc; ++c) {
+            if (skip) { skip = false; continue; }
+            const auto& ch = st.channels[c];
+            const bool pair = ch.stereoLinked && c + 1 < nc;
+            skip = pair;
             float gdb = (ch.mute || (anySolo && !ch.solo)) ? -120.0f : ch.gainDb;
-            float strip = dbToLin(gdb) * (ch.phaseL ? -1.0f : 1.0f);
-            float pl = std::cos((ch.pan + 1.0f) * 0.78539816f), pr = std::sin((ch.pan + 1.0f) * 0.78539816f);  // constant power
+            float lin = dbToLin(gdb);
+            const float *sl = srcp_[c], *srr = nullptr;
+            float pl, pr, sgnL = ch.phaseL ? -1.0f : 1.0f, sgnR = 1.0f;
+            if (pair) {
+                const float *l0 = srcp_[c], *r0 = srcp_[c + 1];
+                const float w = std::max(0.0f, std::min(2.0f, ch.width));
+                for (int i = 0; i < n; ++i) {
+                    float l = l0[i], r = r0[i];
+                    if (ch.midSide) { float m = l, sd = r; l = m + sd; r = m - sd; }   // input is Mid/Side: decode to L/R
+                    float m = (l + r) * 0.5f, sd = (l - r) * 0.5f * w;
+                    wl_[size_t(i)] = m + sd; wr_[size_t(i)] = m - sd;
+                }
+                sl = wl_.data(); srr = wr_.data();
+                pl = ch.pan > 0 ? 1.0f - ch.pan : 1.0f; pr = ch.pan < 0 ? 1.0f + ch.pan : 1.0f;   // balance
+                sgnR = ch.phaseR ? -1.0f : 1.0f;
+            } else {
+                pl = std::cos((ch.pan + 1.0f) * 0.78539816f); pr = std::sin((ch.pan + 1.0f) * 0.78539816f);   // constant power
+                sgnR = sgnL;
+            }
             for (size_t b = 0; b < nb; ++b) {
                 float send = rt.routed(int(c), int(b)) ? dbToLin(rt.get(int(c), int(b))) : 0.0f;
-                float tl = strip * send * pl, tr = strip * send * pr;
+                float tl = lin * send * pl * sgnL, tr = lin * send * pr * sgnR;
                 float& gl = cur_[(c * kMaxBuses + b) * 2];
                 float& gr = cur_[(c * kMaxBuses + b) * 2 + 1];
                 float *ol = out[b * 2], *orr = out[b * 2 + 1];
                 for (int i = 0; i < n; ++i) {
                     gl += (tl - gl) * coef_;
                     gr += (tr - gr) * coef_;
-                    ol[i] += src[i] * gl;
-                    orr[i] += src[i] * gr;
+                    ol[i] += sl[i] * gl;
+                    orr[i] += (srr ? srr[i] : sl[i]) * gr;
                 }
+            }
+            if (nb > 1) {   // FX send: goes to the last bus (the FX return bus), -60 dB = off
+                float fs = ch.fxSendDb > -59.0f ? dbToLin(ch.fxSendDb) : 0.0f;
+                float tl = lin * fs * pl * sgnL, tr = lin * fs * pr * sgnR;
+                float& gl = curSend_[c * 2]; float& gr = curSend_[c * 2 + 1];
+                float *ol = out[(nb - 1) * 2], *orr = out[(nb - 1) * 2 + 1];
+                if (tl != 0.0f || tr != 0.0f || gl != 0.0f || gr != 0.0f)
+                    for (int i = 0; i < n; ++i) {
+                        gl += (tl - gl) * coef_; gr += (tr - gr) * coef_;
+                        ol[i] += sl[i] * gl; orr[i] += (srr ? srr[i] : sl[i]) * gr;
+                    }
             }
         }
         for (size_t b = 0; b < nb; ++b) {
@@ -132,7 +171,8 @@ private:
     float coef_ = 0.01f, sr_ = 48000.0f;
     int maxFrames_ = 4096;
     size_t nc_ = 0, nb_ = 0;   // counts the DSP state is currently valid for (audio thread only)
-    std::vector<float> cur_;
+    std::vector<float> cur_, curSend_, wl_, wr_;
+    std::vector<const float*> srcp_;
     std::vector<ChannelFx> fx_;
     std::vector<ReverbUnit> rev_;
     std::vector<ShimmerDelay> dly_;

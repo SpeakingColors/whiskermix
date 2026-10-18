@@ -18,6 +18,12 @@ struct Channel {
     bool phaseL = false;
     bool phaseR = false;
     bool stereoLinked = false;  // linked with the next channel
+    int colour = 0;             // index into the 9 soda pop strip colours
+    std::string emoji;          // shown next to the name; shared with the MIDI device card
+    float width = 1.0f;         // stereo width 0..2 (1 = unchanged)
+    bool midSide = false;       // M/S processing
+    float fxSendDb = -60.0f;    // send to the FX bus; -60 = off
+    bool cue = false;           // cue (headphone pre-listen)
     wm::engine::FxParams fx;
 };
 

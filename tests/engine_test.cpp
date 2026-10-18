@@ -106,6 +106,28 @@ int main() {
         w.join();
         CHECK(bad == 0 && !backwards);
     }
+    // Stereo pair, width, M/S decode and FX send
+    {
+        mixer::Mixer m2(2, 2); mixer::RoutingMatrix r2(2, 2);
+        engine::AudioEngine e2(m2, r2); e2.prepare(256);
+        std::vector<std::vector<float>> in2(2, std::vector<float>(256)), out2(4, std::vector<float>(256));
+        for (int i = 0; i < 256; ++i) { in2[0][size_t(i)] = 0.6f; in2[1][size_t(i)] = 0.2f; }   // mid 0.4, side 0.2
+        m2.state().channels[0].stereoLinked = true; r2.set(0, 0, 0.0f);
+        run(e2, in2, out2);
+        CHECK(near(out2[0][255], 0.6f) && near(out2[1][255], 0.2f));            // pair: left and right pass straight
+        m2.state().channels[0].width = 0.0f; run(e2, in2, out2);
+        CHECK(near(out2[0][255], 0.4f) && near(out2[1][255], 0.4f));            // width 0 = mono
+        m2.state().channels[0].width = 2.0f; run(e2, in2, out2);
+        CHECK(near(out2[0][255], 0.8f) && near(out2[1][255], 0.0f));            // width 2 doubles the side
+        m2.state().channels[0].width = 1.0f; m2.state().channels[0].midSide = true; run(e2, in2, out2);
+        CHECK(near(out2[0][255], 0.8f) && near(out2[1][255], 0.4f));            // M/S decode: L=M+S, R=M-S
+        m2.state().channels[0].midSide = false; m2.state().channels[0].pan = 1.0f; run(e2, in2, out2);
+        CHECK(near(out2[0][255], 0.0f) && near(out2[1][255], 0.2f));            // balance full right keeps right only
+        m2.state().channels[0].pan = 0; m2.state().channels[0].fxSendDb = 0.0f; run(e2, in2, out2);
+        CHECK(near(out2[2][255], 0.6f) && near(out2[3][255], 0.2f));            // FX send reaches the last bus
+        m2.state().channels[0].fxSendDb = -60.0f; run(e2, in2, out2);
+        CHECK(near(out2[2][255], 0.0f, 1e-4f));
+    }
     if (!fails) std::puts("engine_test: all passed");
     return fails ? 1 : 0;
 }
