@@ -1,0 +1,27 @@
+name: build
+on: [push, pull_request]
+jobs:
+  core-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh tests/run.sh
+  linux-app:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ pkg-config libpipewire-0.3-dev libusb-1.0-0-dev libasound2-dev \
+            libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype-dev libfontconfig1-dev libgl-dev
+      - run: git clone --depth 1 --branch 8.0.12 https://github.com/juce-framework/JUCE.git third_party/JUCE
+      - run: cmake -B build -G Ninja -DWM_BUILD_APP=ON && cmake --build build
+  desktop-app:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: git clone --depth 1 --branch 8.0.12 https://github.com/juce-framework/JUCE.git third_party/JUCE
+      - run: cmake -B build -DWM_BUILD_APP=ON -DWM_WINDOWS_TEST=ON && cmake --build build --config Release
