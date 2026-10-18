@@ -3,7 +3,11 @@
 #include <juce_gui_extra/juce_gui_extra.h>
 #include <thread>
 #include "../engine/AudioEngine.h"
+#ifdef WM_JUCE_AUDIO
+#include "JuceAudio.h"
+#else
 #include "../pipewire/PipeWireMixer.h"
+#endif
 #include "../mixer/StateJson.h"
 
 class MainWindow : public juce::DocumentWindow {
@@ -28,16 +32,33 @@ public:
         std::vector<std::string> ins, buses;
         for (auto& c : mixer->state().channels) ins.push_back(c.name);
         for (auto& b : mixer->state().buses) buses.push_back(b.name);
+#ifdef WM_JUCE_AUDIO
+        jaudio = std::make_unique<JuceAudio>(*engine);
+        adm.initialiseWithDefaultDevices(8, 4);
+        adm.addAudioCallback(jaudio.get());
+#else
         if (pw.start(*engine, ins, buses)) audio = std::thread([this] { pw.run(); });
+#endif
         window = std::make_unique<MainWindow>();
     }
-    void shutdown() override { pw.quit(); if (audio.joinable()) audio.join(); window.reset(); }
+    void shutdown() override {
+#ifdef WM_JUCE_AUDIO
+        adm.removeAudioCallback(jaudio.get());
+#else
+        pw.quit(); if (audio.joinable()) audio.join();
+#endif
+        window.reset(); }
 private:
     std::unique_ptr<wm::mixer::Mixer> mixer;
     std::unique_ptr<wm::mixer::RoutingMatrix> routing;
     std::unique_ptr<wm::engine::AudioEngine> engine;
+#ifdef WM_JUCE_AUDIO
+    juce::AudioDeviceManager adm;
+    std::unique_ptr<JuceAudio> jaudio;
+#else
     wm::pw::PipeWireMixer pw;
     std::thread audio;
+#endif
     std::unique_ptr<MainWindow> window;
 };
 START_JUCE_APPLICATION(WhiskerMixApp)
