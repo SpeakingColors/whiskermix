@@ -9,11 +9,8 @@
    - Control surfaces: Mackie Control and OSC.
 4. **FX**: own DSP block chain applied in software (see the shared cat-fx plan).
 
-## Digiface USB status
-Captured so far (USBPcap): enumeration plus a poll of four vendor control IN requests (0xC0): 0x1C, 0x1E, 0x1F (4 bytes each) and 0x11 (16 bytes). No vendor OUT writes yet, so the mixer protocol is unknown. A capture with TotalMix FX in use, one action per file, is needed. Details: project note `digiface-usb-notes`.
-
-## Pulse 16 status
-SysEx replies were truncated in earlier captures by a clone cable (fc02:0101). A proper MIDI interface is needed to get the full replies.
+## Hardware backends
+The Digiface matrix mixer, output gain and meters are not exposed by the Linux kernel driver. The vendor protocol is still being researched. The Pulse 16 uses SysEx over DIN MIDI.
 
 ## Fallback if the matrix protocol cannot be learned
 Run the mixer in software: route PipeWire/JACK ports through our own mixer and use the Digiface only as an audio interface.
