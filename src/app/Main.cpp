@@ -26,7 +26,7 @@ public:
 class WhiskerMixApp : public juce::JUCEApplication {
 public:
     const juce::String getApplicationName() override { return "WhiskerMix"; }
-    const juce::String getApplicationVersion() override { return "0.1.0"; }
+    const juce::String getApplicationVersion() override { return JUCE_APPLICATION_VERSION_STRING; }
     void initialise(const juce::String&) override {
         juce::LookAndFeel::setDefaultLookAndFeel(&look);
         mixer = std::make_unique<wm::mixer::Mixer>(8, 2);

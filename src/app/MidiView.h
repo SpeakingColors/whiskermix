@@ -303,7 +303,7 @@ private:
         resized();
     }
     juce::String report() const {
-        return juce::String(hub.debugReport(rep, "WhiskerMix 0.1.0", juce::SystemStats::getOperatingSystemName().toStdString(), ""));
+        return juce::String(hub.debugReport(rep, std::string("WhiskerMix ") + JUCE_APPLICATION_VERSION_STRING, juce::SystemStats::getOperatingSystemName().toStdString(), ""));
     }
     void refreshLog(bool force) {
         if (pauseB.getToggleState() && !force) return;
