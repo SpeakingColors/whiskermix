@@ -1,0 +1,84 @@
+# Release: builds WhiskerMix and the Shimmer plugins on Linux, Windows and macOS and publishes one zip per system.
+# Run by pushing a tag like v0.1.0, or by hand (Actions, release, Run workflow) with the tag filled in.
+# With the tag left empty it only builds (zips appear as build artifacts, nothing is published).
+name: release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Publish a pre-release with this tag (for example v0.1.0). Leave empty to only build.'
+        required: false
+        default: ''
+permissions:
+  contents: read
+env:
+  TAGIN: ${{ inputs.tag }}
+jobs:
+  package:
+    strategy:
+      matrix:
+        include:
+          - {os: ubuntu-24.04, name: linux}
+          - {os: windows-latest, name: windows}
+          - {os: macos-latest, name: macos}
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ pkg-config libpipewire-0.3-dev libusb-1.0-0-dev libasound2-dev \
+            libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype-dev libfontconfig1-dev libgl-dev
+      - run: git clone --depth 1 --branch 8.0.16-security https://github.com/juce-framework/JUCE.git third_party/JUCE
+      - name: Version from the tag
+        shell: bash
+        run: |
+          ver="${TAGIN:-$GITHUB_REF_NAME}"; ver="${ver#v}"
+          if echo "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            sed -i.bak -E "s/^(project\([A-Za-z0-9_]+ VERSION )[0-9.]+/\1$ver/" CMakeLists.txt; rm -f CMakeLists.txt.bak
+          fi
+      - name: Build
+        shell: bash
+        run: |
+          set -o pipefail
+          extra=""; [ "${{ matrix.name }}" != "linux" ] && extra="-DWM_WINDOWS_TEST=ON"
+          (cmake -B build -DCMAKE_BUILD_TYPE=Release -DWM_BUILD_APP=ON -DWM_BUILD_PLUGINS=ON $extra && cmake --build build --config Release) 2>&1 | tee build.log
+      - if: failure()
+        shell: bash
+        run: grep -E "error|Error" build.log | head -15 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
+      - shell: bash
+        run: tools/package.sh ${{ matrix.name }} build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WhiskerMix-${{ matrix.name }}
+          path: dist/WhiskerMix-${{ matrix.name }}.zip
+
+  publish:
+    needs: package
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: parts }
+      - name: Collect and checksum
+        run: |
+          tag="$GITHUB_REF_NAME"; if [ "$GITHUB_REF_TYPE" != "tag" ]; then tag="${TAGIN:-dev}"; fi
+          mkdir -p out
+          for os in linux windows macos; do cp "parts/WhiskerMix-$os/WhiskerMix-$os.zip" "out/WhiskerMix_${tag}_$os.zip"; done
+          (cd out && sha256sum *.zip > SHA256SUMS && cat SHA256SUMS)
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: out/*
+      - name: Publish release
+        if: github.ref_type == 'tag' || inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$TAG" out/* -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "WhiskerMix $TAG (test build)" \
+            --notes "Test build. Free and open source. One zip per system (Linux, Windows, macOS) with the app, the Shimmer plugins, the manual and INSTALL.txt. Works offline. SHA-256 sums are in SHA256SUMS. Real installers (.exe, .pkg, Flatpak) are planned."
