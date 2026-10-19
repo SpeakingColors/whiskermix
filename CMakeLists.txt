@@ -45,7 +45,7 @@ if(WM_BUILD_PLUGINS)
     endif()
     juce_add_plugin(${plug}
       PRODUCT_NAME "${plug}"
-      COMPANY_NAME "SpeakingColors"
+      COMPANY_NAME "Studio 87"
       PLUGIN_MANUFACTURER_CODE Spco
       PLUGIN_CODE ${code}
       FORMATS VST3 Standalone
