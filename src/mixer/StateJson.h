@@ -40,15 +40,15 @@ inline std::string toJson(const State& st) {
         std::string one = b;
         one.pop_back();            // drop the closing brace, add fx fields, close again
         char ex[128];
-        std::snprintf(ex, sizeof ex, ",\"colour\":%d,\"width\":%.3f,\"ms\":%d,\"fxSend\":%.2f,\"cue\":%d,\"hide\":%d,\"emoji\":\"", c.colour, double(c.width), c.midSide, double(c.fxSendDb), c.cue, c.hidden);
+        std::snprintf(ex, sizeof ex, ",\"colour\":%d,\"width\":%.3f,\"ms\":%d,\"fxSend\":%.2f,\"cue\":%d,\"hide\":%d,\"hw\":%d,\"pb\":%d,\"emoji\":\"", c.colour, double(c.width), c.midSide, double(c.fxSendDb), c.cue, c.hidden, c.hwFirst, c.playback);
         o += one + fx + ex + jsonEscape(c.emoji) + "\"}";
     }
     o += "],\"buses\":[";
     for (size_t i = 0; i < st.buses.size(); ++i) {
-        char b[192];
+        char b[224];
         const auto& bu = st.buses[i];
-        std::snprintf(b, sizeof b, "%s{\"name\":\"%s\",\"volume\":%.3f,\"dim\":%d,\"rvOn\":%d,\"dlOn\":%d,\"rvType\":%d", i ? "," : "",
-                      jsonEscape(bu.name).c_str(), bu.volumeDb, bu.dim, bu.reverbOn, bu.delayOn, int(bu.reverb.type));
+        std::snprintf(b, sizeof b, "%s{\"name\":\"%s\",\"volume\":%.3f,\"dim\":%d,\"rvOn\":%d,\"dlOn\":%d,\"rvType\":%d,\"hw\":%d,\"st\":%d", i ? "," : "",
+                      jsonEscape(bu.name).c_str(), bu.volumeDb, bu.dim, bu.reverbOn, bu.delayOn, int(bu.reverb.type), bu.hwFirst, bu.stereo);
         o += b;
         char t[64];
 #define X(k) std::snprintf(t, sizeof t, ",\"bx_" #k "\":%.4g", double(bu.k)); o += t;
@@ -97,6 +97,8 @@ inline bool fromJson(const std::string& s, State& st) {
         if (detail::field(s, p, e, "fxSend", v)) c.fxSendDb = std::strtof(v.c_str(), nullptr);
         if (detail::field(s, p, e, "cue", v)) c.cue = v == "1";
         if (detail::field(s, p, e, "hide", v)) c.hidden = v == "1";
+        if (detail::field(s, p, e, "hw", v)) c.hwFirst = std::atoi(v.c_str());
+        if (detail::field(s, p, e, "pb", v)) c.playback = v == "1";
         if (detail::field(s, p, e, "emoji", v)) c.emoji = v;
         if (detail::field(s, p, e, "fxEq", v)) c.fx.eqOn = v == "1";
         if (detail::field(s, p, e, "fxComp", v)) c.fx.compOn = v == "1";
@@ -114,6 +116,8 @@ inline bool fromJson(const std::string& s, State& st) {
         if (detail::field(s, p, e, "rvOn", v)) b.reverbOn = v == "1";
         if (detail::field(s, p, e, "dlOn", v)) b.delayOn = v == "1";
         if (detail::field(s, p, e, "rvType", v)) b.reverb.type = wm::engine::ReverbType(std::atoi(v.c_str()));
+        if (detail::field(s, p, e, "hw", v)) b.hwFirst = std::atoi(v.c_str());
+        if (detail::field(s, p, e, "st", v)) b.stereo = v == "1";
 #define X(k) if (detail::field(s, p, e, "bx_" #k, v)) b.k = std::strtof(v.c_str(), nullptr);
         WM_BUS_FIELDS(X)
 #undef X

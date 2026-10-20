@@ -35,7 +35,6 @@ public:
         auto built = wm::mixer::buildFromLayout(wm::mixer::studioLayout());
         mixer = std::make_unique<wm::mixer::Mixer>(built.mixer);
         routing = std::make_unique<wm::mixer::RoutingMatrix>(built.routing);
-        inputs = built.inputs;
         engine = std::make_unique<wm::engine::AudioEngine>(*mixer, *routing);
         std::vector<std::string> ins, buses;
         for (auto& c : mixer->state().channels) ins.push_back(c.name);
@@ -49,7 +48,7 @@ public:
 #endif
         auto* view = new wmui::AppView(*mixer, *routing, *engine);
         // Digiface hardware mixer: bus 0 = Main (control room), bus 1 = Speaker B (iLoud Micro).
-        digiface = std::make_unique<wmui::DigifaceLink>(*mixer, inputs, 0, mixer->state().buses.size() >= 2 ? 1 : -1);
+        digiface = std::make_unique<wmui::DigifaceLink>(*mixer, 0, mixer->state().buses.size() >= 2 ? 1 : -1);
         view->digifaceStatus = [this] { return digiface->status(); };
         view->onWorkspaceLoaded = [this] { digiface->resend(); };
 #ifndef WM_JUCE_AUDIO
@@ -78,6 +77,5 @@ private:
 #endif
     std::unique_ptr<MainWindow> window;
     std::unique_ptr<wmui::DigifaceLink> digiface;
-    int inputs = 0;
 };
 START_JUCE_APPLICATION(WhiskerMixApp)

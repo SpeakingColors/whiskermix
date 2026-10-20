@@ -14,10 +14,8 @@ namespace wmui {
 
 class DigifaceLink : private juce::Timer {
 public:
-    // inputs: how many mixer channels are hardware inputs (channel i -> Digiface input i).
     // mainA / mainB: bus indices used as Main (control room) and Speaker B.
-    DigifaceLink(wm::mixer::Mixer& m, int inputs, int mainA, int mainB) : mx(m), sync(dry) {
-        sync.setInputRange(0, inputs);
+    DigifaceLink(wm::mixer::Mixer& m, int mainA, int mainB) : mx(m), sync(dry) {
         sync.setMainBuses(mainA, mainB);
         tryOpen();
         startTimer(20);
@@ -39,8 +37,7 @@ private:
         std::string err;
         if (t->open(&err)) {
             liveTr = std::move(t);
-            sync = wm::digiface::Sync(*liveTr);
-            sync.setInputRange(0, inputsCount());
+            sync.setTransport(*liveTr);
             reason.clear();
             return;
         }

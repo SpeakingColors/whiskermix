@@ -25,6 +25,8 @@ struct Channel {
     float fxSendDb = -60.0f;    // send to the FX bus; -60 = off
     bool cue = false;           // cue (headphone pre-listen)
     bool hidden = false;        // hidden in the mixer (Settings > Channel layout)
+    int hwFirst = -1;           // Digiface hardware channel of this strip (0-based; stereo strips use hwFirst and hwFirst+1); -1 = not on the hardware
+    bool playback = false;      // software playback strip (true) or hardware input (false)
     wm::engine::FxParams fx;
 };
 
@@ -32,6 +34,8 @@ struct Bus {
     std::string name;
     float volumeDb = 0.0f;
     bool dim = false;
+    int hwFirst = -1;           // Digiface hardware output (0-based); -1 = software only
+    bool stereo = true;
     // Bus effects (use a dedicated bus as an FX return): reverb/shimmer reverb and shimmer delay.
     bool reverbOn = false, delayOn = false;
     wm::engine::ReverbSettings reverb;
