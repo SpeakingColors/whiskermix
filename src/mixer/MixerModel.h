@@ -67,6 +67,38 @@ public:
     void removeLastChannel() { if (!state_.channels.empty()) state_.channels.pop_back(); }
     void rename(int ch, const std::string& n) { state_.channels.at(size_t(ch)).name = n; }
 
+    // TotalMix "Stereo" button. Split: a stereo strip becomes two mono strips (same settings, hardware channels
+    // hwFirst and hwFirst + 1, names "<name> 1" and "<name> 2"). Join: a mono strip and the next strip (its hardware
+    // neighbour) become one stereo strip again. Returns true when something changed.
+    bool splitStereo(int ch) {
+        auto& c = state_.channels.at(size_t(ch));
+        if (!c.stereoLinked) return false;
+        Channel r = c;
+        c.stereoLinked = false; r.stereoLinked = false; r.midSide = false; c.midSide = false;
+        const std::string base = c.name;
+        c.name = base + " 1"; r.name = base + " 2";
+        if (r.hwFirst >= 0) r.hwFirst = c.hwFirst + 1;
+        r.phaseL = c.phaseR; r.phaseR = c.phaseR; c.phaseR = c.phaseL;
+        state_.channels.insert(state_.channels.begin() + ch + 1, r);
+        return true;
+    }
+    bool canJoin(int ch) const {
+        if (ch < 0 || ch + 1 >= int(state_.channels.size())) return false;
+        const auto& a = state_.channels[size_t(ch)]; const auto& b = state_.channels[size_t(ch + 1)];
+        if (a.stereoLinked || b.stereoLinked || a.playback != b.playback) return false;
+        if (a.hwFirst >= 0 && (b.hwFirst != a.hwFirst + 1 || (a.hwFirst % 2) != 0)) return false;   // only hardware pairs 1-2, 3-4, ... like TotalMix
+        return true;
+    }
+    bool joinStereo(int ch) {
+        if (!canJoin(ch)) return false;
+        auto& a = state_.channels[size_t(ch)]; const auto& b = state_.channels[size_t(ch + 1)];
+        a.stereoLinked = true; a.phaseR = b.phaseL;
+        auto strip = [](std::string n) { if (n.size() > 2 && (n.compare(n.size() - 2, 2, " 1") == 0 || n.compare(n.size() - 2, 2, " 2") == 0)) n.erase(n.size() - 2); return n; };
+        a.name = strip(a.name);
+        state_.channels.erase(state_.channels.begin() + ch + 1);
+        return true;
+    }
+
     bool anySolo() const {
         for (const auto& c : state_.channels) if (c.solo) return true;
         return false;
