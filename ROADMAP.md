@@ -4,7 +4,11 @@ Standalone studio hub: TotalMix-style mixer for the RME Digiface USB, MIDI hub, 
 
 ## Next
 - [x] TotalMix to Digiface USB captures done and decoded: gain encoding, channel words, pan, phase, stereo, M/S, main volume, dim, speaker B (see project docs digiface-usb-notes and digiface-captures-labeled; codec in src/backends/digiface). Mute is gain 0 (no USB write seen), solo and width not seen on USB
+- [x] Digiface backend: Sync (diff writes), studio layout from TotalMix, dry-run fallback, status in the toolbar
+- [ ] Digiface: first run on real hardware (udev rule, bulk interface claim next to the kernel driver, every control)
+- [ ] Later: other interface brands and a native audio fallback when the sound card is not there (software mixer only)
 - [ ] Digiface: still undecoded: meters (interrupt IN 0x83 and bulk IN 0x84), which bus/submix each channel byte belongs to, playback and hardware-output channel addressing, hardware test on Bazzite
+- [ ] App window built from the approved mockups (same layout, look, wood cheeks); today's JUCE pages are functional stand-ins
 - [ ] JUCE app on cat-ui: mixer page first (inputs, playbacks, outputs, mute red, solo yellow, per-strip settings panel that opens and closes without folding the channel)
 - [ ] Channel layout like TotalMix: name, color, hide per tab
 - [ ] Own FX (the Digiface has no DSP): reverb, echo, chorus, compressor, limiter, EQ, on inputs too
