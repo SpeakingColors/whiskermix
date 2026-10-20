@@ -6,7 +6,7 @@ option(WM_BUILD_PLUGINS "Build the standalone effect plugins (VST3 + Standalone)
 option(WM_BUILD_APP "Build the JUCE + PipeWire app" OFF)
 
 enable_testing()
-foreach(t digiface_codec_test names_test mixer_test state_test engine_test reverb_test hub_test)
+foreach(t digiface_codec_test names_test mixer_test state_test engine_test reverb_test hub_test pulse16_test)
   add_executable(${t} tests/${t}.cpp)
   add_test(NAME ${t} COMMAND ${t})
 endforeach()

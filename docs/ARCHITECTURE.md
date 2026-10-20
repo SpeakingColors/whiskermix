@@ -13,7 +13,7 @@
 - **Digiface mixer** (`src/backends/digiface/`): a pure C++ codec (gain values, channel and main-output packets) behind a small `Transport` interface, plus a recording transport for tests and dry-run. `LibusbTransport` sends the writes over USB; it does not detach the kernel audio driver, so audio keeps running. It compiles but is not yet tested on real hardware. Install `packaging/udev/70-whiskermix-digiface.rules` so no root is needed.
 - Controls the hardware does not take over USB (mute, solo, width and similar) are done in software through PipeWire/JACK, so the UI behaves the same either way.
 - **Names** (`src/names/`): one list of channel names generates a WirePlumber rule so the device and its channels carry the same names in system sound settings, patchbays and DAWs. Experimental: run `tools/wm-diagnose.sh` to check the real node names and how each app shows them.
-- The Pulse 16 uses SysEx over DIN MIDI.
+- **Pulse 16** (`src/backends/pulse16/`): a pure C++ SysEx codec and a session model (connect handshake, live state, setters) behind a small `Transport` interface. The protocol was reverse engineered from RemoteFish captures: see `docs/PULSE16-PROTOCOL.md`. Tests: `tests/pulse16_test.cpp`. The JUCE page is not wired to it yet.
 
 Tests: `g++ -std=c++17 tests/digiface_codec_test.cpp -o /tmp/t1 && /tmp/t1` and the same for `tests/names_test.cpp`.
 
