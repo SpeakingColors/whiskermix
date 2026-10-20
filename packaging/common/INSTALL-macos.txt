@@ -1,7 +1,7 @@
 WhiskerMix for macOS
 ====================
-1. Unzip, drag WhiskerMix.app to Applications.
-2. First launch: right-click the app, choose Open (the app is not notarized yet).
-3. Effect plugins: copy the .vst3 files from "plugins" to ~/Library/Audio/Plug-Ins/VST3
-Note: macOS builds mix audio only. Digiface USB control (hardware mixer) is Linux only for now.
-Full guide: manual/MANUAL.md
+1. Open WhiskerMix-macOS.pkg. If macOS blocks it (not notarized), right-click the .pkg, choose Open, then Open again.
+2. The installer puts WhiskerMix.app and "Uninstall WhiskerMix.app" in Applications, the Shimmer plugins in /Library/Audio/Plug-Ins/VST3, and the manual in /Library/Application Support/Studio 87/WhiskerMix.
+3. Start WhiskerMix and choose your audio device in Settings.
+Note: macOS builds mix audio only. Digiface USB hardware control is Linux only for now.
+Uninstall: open "Uninstall WhiskerMix" from Applications (asks whether to keep your workspaces and snapshots).

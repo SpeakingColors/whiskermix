@@ -6,6 +6,7 @@ d="$root/dist/WhiskerMix-$os"; rm -rf "$d"; mkdir -p "$d/plugins" "$d/manual" "$
 cp "$root/packaging/common/INSTALL-$os.txt" "$d/INSTALL.txt"
 cp "$root/LICENSE" "$d/"
 cp "$root/docs/MANUAL.md" "$d/manual/"; [ -d "$root/docs/screenshots" ] && cp -r "$root/docs/screenshots" "$d/manual/"
+[ -n "$MANUAL_PDF" ] && cp "$MANUAL_PDF" "$d/WhiskerMix-manual.pdf"
 cp "$root/assets/"* "$d/assets/"
 for p in ShimmerDelay ShimmerReverb; do cp -r "$b/${p}_artefacts/"*/VST3/*.vst3 "$d/plugins/"; done
 case $os in

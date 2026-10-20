@@ -1,6 +1,8 @@
-# Release: builds WhiskerMix and the Shimmer plugins on Linux, Windows and macOS and publishes one zip per system.
+# Release: one zip with a folder per system (linux, windows, macos), each with the app, the Shimmer plugins,
+# INSTALL.txt and the PDF manual. Windows gets an installer (.exe, Inno Setup), macOS a .pkg with an uninstaller,
+# Linux the app with install.sh/uninstall.sh and the udev rule (Flatpak planned).
 # Run by pushing a tag like v0.1.0, or by hand (Actions, release, Run workflow) with the tag filled in.
-# With the tag left empty it only builds (zips appear as build artifacts, nothing is published).
+# With the tag left empty it only builds (the zip appears as a build artifact, nothing is published).
 name: release
 on:
   push:
@@ -15,70 +17,142 @@ permissions:
   contents: read
 env:
   TAGIN: ${{ inputs.tag }}
+  NAME: WhiskerMix
+  PRODUCT: WhiskerMix
 jobs:
-  package:
-    strategy:
-      matrix:
-        include:
-          - {os: ubuntu-24.04, name: linux}
-          - {os: windows-latest, name: windows}
-          - {os: macos-latest, name: macos}
-      fail-fast: false
-    runs-on: ${{ matrix.os }}
+  manual:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - if: matrix.name == 'linux'
+      - run: pip install reportlab
+      - run: python3 tools/make_manual.py x docs/MANUAL.md "$NAME-manual.pdf"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manual
+          path: "*.pdf"
+
+  windows:
+    needs: manual
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: manual, path: manual }
+      - run: git clone --depth 1 --branch 8.0.16-security https://github.com/juce-framework/JUCE.git third_party/JUCE
+      - name: Build
         run: |
+          ver="${TAGIN:-$GITHUB_REF_NAME}"; ver="${ver#v}"; if echo "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then sed -i.bak -E "s/^(project\([A-Za-z0-9_]+ VERSION )[0-9.]+/\1$ver/" CMakeLists.txt; rm -f CMakeLists.txt.bak; fi
+          cmake -B build -DWM_BUILD_APP=ON -DWM_BUILD_PLUGINS=ON -DWM_WINDOWS_TEST=ON
+          cmake --build build --config Release --parallel 4
+      - name: Stage files
+        run: |
+          mkdir -p stage/vst3 stage/standalone
+          cp "build/WhiskerMix_artefacts/Release/WhiskerMix.exe" "stage/$PRODUCT.exe"
+          for p in ShimmerDelay ShimmerReverb; do cp -r build/${p}_artefacts/Release/VST3/$p.vst3 stage/vst3/; cp build/${p}_artefacts/Release/Standalone/$p.exe stage/standalone/; done
+          cp manual/*.pdf "stage/$NAME-manual.pdf"; cp packaging/common/INSTALL-windows.txt stage/INSTALL.txt
+      - name: Installer (Inno Setup)
+        run: |
+          ver="${TAGIN:-$GITHUB_REF_NAME}"; ver="${ver#v}"; echo "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || ver=0.0.1
+          iscc="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          [ -f "$iscc" ] || choco install innosetup -y --no-progress
+          "$iscc" "//DName=$NAME" "//DProduct=$PRODUCT" "//DVersion=$ver" packaging/windows.iss
+          cp packaging/common/INSTALL-windows.txt Output/INSTALL.txt; cp manual/*.pdf Output/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: "Output/*"
+
+  macos:
+    needs: manual
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: manual, path: manual }
+      - run: git clone --depth 1 --branch 8.0.16-security https://github.com/juce-framework/JUCE.git third_party/JUCE
+      - name: Build (universal)
+        run: |
+          ver="${TAGIN:-$GITHUB_REF_NAME}"; ver="${ver#v}"; if echo "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then sed -i.bak -E "s/^(project\([A-Za-z0-9_]+ VERSION )[0-9.]+/\1$ver/" CMakeLists.txt; rm -f CMakeLists.txt.bak; fi
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DWM_BUILD_APP=ON -DWM_BUILD_PLUGINS=ON -DWM_WINDOWS_TEST=ON -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+          cmake --build build --config Release --parallel 4
+      - name: Installer (.pkg)
+        run: |
+          ver="${TAGIN:-$GITHUB_REF_NAME}"; ver="${ver#v}"; echo "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || ver=0.0.1
+          id="io.github.speakingcolors.whiskermix"
+          mkdir -p root/vst3 root/app root/doc out
+          osacompile -o "root/app/Uninstall $PRODUCT.app" packaging/macos-uninstall.applescript
+          cp -R build/WhiskerMix_artefacts/Release/WhiskerMix.app root/app/
+          for p in ShimmerDelay ShimmerReverb; do cp -R build/${p}_artefacts/Release/VST3/$p.vst3 root/vst3/; done
+          cp manual/*.pdf "root/doc/$NAME-manual.pdf"
+          for a in root/app/*.app root/vst3/*.vst3; do codesign --force --deep -s - "$a"; done
+          pkgbuild --root root/vst3 --identifier "$id.vst3" --version "$ver" --install-location "/Library/Audio/Plug-Ins/VST3" vst3.pkg
+          pkgbuild --root root/app --identifier "$id.app" --version "$ver" --install-location "/Applications" app.pkg
+          pkgbuild --root root/doc --identifier "$id.doc" --version "$ver" --install-location "/Library/Application Support/Studio 87/$PRODUCT" doc.pkg
+          productbuild --package vst3.pkg --package app.pkg --package doc.pkg "out/$NAME-macOS.pkg"
+          cp packaging/common/INSTALL-macos.txt out/INSTALL.txt; cp manual/*.pdf out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: "out/*"
+
+  linux:
+    needs: manual
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: manual, path: manual }
+      - run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build g++ pkg-config libpipewire-0.3-dev libusb-1.0-0-dev libasound2-dev \
             libx11-dev libxinerama-dev libxext-dev libxrandr-dev libxcursor-dev libfreetype-dev libfontconfig1-dev libgl-dev
       - run: git clone --depth 1 --branch 8.0.16-security https://github.com/juce-framework/JUCE.git third_party/JUCE
-      - name: Version from the tag
-        shell: bash
-        run: |
-          ver="${TAGIN:-$GITHUB_REF_NAME}"; ver="${ver#v}"
-          if echo "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            sed -i.bak -E "s/^(project\([A-Za-z0-9_]+ VERSION )[0-9.]+/\1$ver/" CMakeLists.txt; rm -f CMakeLists.txt.bak
-          fi
       - name: Build
         shell: bash
         run: |
           set -o pipefail
-          extra=""; [ "${{ matrix.name }}" != "linux" ] && extra="-DWM_WINDOWS_TEST=ON"
-          (cmake -B build -DCMAKE_BUILD_TYPE=Release -DWM_BUILD_APP=ON -DWM_BUILD_PLUGINS=ON $extra && cmake --build build --config Release) 2>&1 | tee build.log
+          ver="${TAGIN:-$GITHUB_REF_NAME}"; ver="${ver#v}"; if echo "$ver" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then sed -i.bak -E "s/^(project\([A-Za-z0-9_]+ VERSION )[0-9.]+/\1$ver/" CMakeLists.txt; rm -f CMakeLists.txt.bak; fi
+          (cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWM_BUILD_APP=ON -DWM_BUILD_PLUGINS=ON && cmake --build build) 2>&1 | tee build.log
       - if: failure()
         shell: bash
         run: grep -E "error|Error" build.log | head -15 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
       - shell: bash
-        run: tools/package.sh ${{ matrix.name }} build
+        run: MANUAL_PDF="$(ls manual/*.pdf)" tools/package.sh linux build
       - uses: actions/upload-artifact@v4
         with:
-          name: WhiskerMix-${{ matrix.name }}
-          path: dist/WhiskerMix-${{ matrix.name }}.zip
+          name: linux
+          path: dist/WhiskerMix-linux
 
-  publish:
-    needs: package
+  package:
     permissions:
       contents: write
+    needs: [manual, windows, macos, linux]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { path: parts }
-      - name: Collect and checksum
+      - name: Assemble the zip
         run: |
           tag="$GITHUB_REF_NAME"; if [ "$GITHUB_REF_TYPE" != "tag" ]; then tag="${TAGIN:-dev}"; fi
-          mkdir -p out
-          for os in linux windows macos; do cp "parts/WhiskerMix-$os/WhiskerMix-$os.zip" "out/WhiskerMix_${tag}_$os.zip"; done
-          (cd out && sha256sum *.zip > SHA256SUMS && cat SHA256SUMS)
-          echo "TAG=$tag" >> "$GITHUB_ENV"
+          d="$NAME-$tag"; mkdir -p "$d/windows" "$d/macos" "$d/linux"
+          cp -r parts/windows/. "$d/windows/"; cp -r parts/macos/. "$d/macos/"; cp -r parts/linux/. "$d/linux/"
+          cp parts/manual/*.pdf "$d/"; cp LICENSE "$d/"
+          printf 'WhiskerMix %s\n\nOne folder per system: windows (installer .exe), macos (installer .pkg), linux (app + install.sh).\nEach folder has its INSTALL.txt and the manual. Made for an RME Digiface USB with a Ferrofish Pulse 16 DX; other interfaces untested.\nWorks offline. Free and open source (AGPL-3.0). https://github.com/SpeakingColors/whiskermix\n' "$tag" > "$d/README.txt"
+          (cd "$d" && find . -type f ! -name SHA256SUMS | sort | xargs sha256sum > SHA256SUMS)
+          zip -r "$d.zip" "$d" >/dev/null; ls -l "$d.zip"
+          echo "TAG=$tag" >> "$GITHUB_ENV"; echo "ZIP=$d.zip" >> "$GITHUB_ENV"
       - uses: actions/upload-artifact@v4
         with:
-          name: release-files
-          path: out/*
+          name: release-zip
+          path: "*.zip"
       - name: Publish release
         if: github.ref_type == 'tag' || inputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$TAG" out/* -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "WhiskerMix $TAG (test build)" \
-            --notes "Test build. Free and open source. One zip per system (Linux, Windows, macOS) with the app, the Shimmer plugins, the manual and INSTALL.txt. Works offline. SHA-256 sums are in SHA256SUMS. Real installers (.exe, .pkg, Flatpak) are planned."
+          if gh release view "$TAG" >/dev/null 2>&1; then gh release upload "$TAG" "$ZIP" --clobber; exit 0; fi
+          gh release create "$TAG" "$ZIP" --target "$GITHUB_SHA" --prerelease --title "$PRODUCT $TAG (test build)" --notes "Test build. Free and open source. One zip with a folder per system: Windows installer (.exe), macOS installer (.pkg) with uninstaller, Linux app with install.sh and the Digiface udev rule; each with INSTALL.txt and the PDF manual. Made for an RME Digiface USB + Ferrofish Pulse 16 DX, untested on anything else. Works offline. SHA-256 sums are inside the zip."
