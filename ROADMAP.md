@@ -9,7 +9,9 @@ Standalone studio hub: TotalMix-style mixer for the RME Digiface USB, MIDI hub, 
 - [ ] Own FX (the Digiface has no DSP): reverb, echo, chorus, compressor, limiter, EQ, on inputs too
 - [ ] Routing and aggregation page, MIDI hub, MIDI-over-MADI or Dante
 - [x] Pulse 16 over DIN MIDI: SysEx codec, session and page (clock, sample rate, headphones, levels, routing, presets 1-6, brightness, key click). Built from RemoteFish captures, compiled and rendered headless; not yet tested on real hardware
-- [ ] Pulse 16: real commands for MIDI routing, MADI 96k frame, MADI short frame, BNC termination, delay compensation; meters; decode the undecoded state blocks (see docs/PULSE16-PROTOCOL.md)
+- [x] Pulse 16 backend: unit id learned from the probe, connection watchdog and meter polling, front panel echoes, backup and restore file, apply-state
+- [ ] Pulse 16: real commands for MIDI routing, MADI 96k frame, MADI short frame, BNC termination, delay compensation; meter scale and channel order (needs a capture with a steady tone); decode the undecoded state blocks (see docs/PULSE16-PROTOCOL.md)
+- [ ] Pulse 16: test on real hardware with the UM-ONE on Bazzite (Find Pulse, connect, every control)
 - [ ] Snapshots and workspaces, talkback and listenback, main out recall and dim, MIDI/Mackie and OSC ports
 
 ## Every cat plugin

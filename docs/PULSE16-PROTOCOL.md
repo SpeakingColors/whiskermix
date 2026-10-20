@@ -5,13 +5,16 @@ Learned from USB captures of RemoteFish 2.1 talking to a Pulse 16 DX (ADAT only,
 Status words: CONFIRMED = matched the on-screen action in a clean capture. PROBABLE = seen once, not proven. UNKNOWN = not decoded.
 
 ## Frame
-`F0 00 11 22 <id: 0B 3C 45 4F 0B> <cmd> <sub> <data...> F7`. The id bytes were identical in every capture from one unit. They may differ per unit (UNVERIFIED), so a future version should read them from the probe answer.
+`F0 00 11 22 <id: 5 bytes> <cmd> <sub> <data...> F7`. The id bytes were identical in every capture from the one unit tested. They may differ per unit (UNVERIFIED), so WhiskerMix reads them from the probe answer and ignores frames carrying another id.
 
 ## Connect
 1. Probe `F0 00 11 22 00 00 00 00 00 02 00 F7`, answer `<id> 03 00`.
-2. `<id> 02 01`. The unit answers with its whole state: a 51 byte block (`03 00`), a 47 byte block (`01 00`), gains (`50 00`), routing (`51 00`), and two blocks `12 00` (140 bytes) and `13 00` (76 bytes) that are not decoded.
+2. `<id> 02 01` (sent with the id from the probe answer). The unit answers with its whole state: a 51 byte block (`03 00`), a 47 byte block (`01 00`), gains (`50 00`), routing (`51 00`), and two blocks `12 00` (140 bytes) and `13 00` (76 bytes) that are not decoded.
 3. RemoteFish then sends `01 04 01`, which selects headphone source Analog Out. WhiskerMix does not.
-4. Meter poll `02 04` about every 0.22 s, answer `04 00 01` plus 32 bytes (UNKNOWN).
+4. Meter poll `02 04` about every 0.22 s. WhiskerMix does the same: the answers double as the keep-alive for its connection watchdog (3 s of silence means lost). Whether the unit needs the polling is UNVERIFIED.
+
+## Meters (EXPERIMENTAL)
+Answer to `02 04`: 46 bytes, `F0 00 11 22 <id> 04 00 <32 level bytes> 01 01 F7`. In all 2057 captured replies the level bytes were 0 to 3 (almost always 1 = no signal; 2 and 3 appeared on a few channels while a signal was present) and the two trailing bytes were always `01`. The scale and the channel order (assumed 16 inputs then 16 outputs) are UNVERIFIED because no capture has a real signal. WhiskerMix therefore only shows a light per channel (raw 2 or more) behind an experimental toggle. A capture with a steady tone on a known input at several levels would settle it.
 
 Every command is echoed back unchanged.
 
@@ -42,4 +45,4 @@ Headphone volume is not part of a preset.
 - On the ADAT only DX, RemoteFish sent `01 02 <index>` (the sample rate command) for its MIDI routing, MADI 96k frame, MADI short frame and BNC termination controls. One stray command left a unit running at 44.1 kHz while the screen said 48 kHz. Do not map those controls to `01 02`; their real commands are UNKNOWN.
 - The unit's screen can show a rate it is not running, and RemoteFish sends nothing when you re-pick the value it shows. Send the rate explicitly.
 - Clock: only one device may be master. With nothing on the BNC input and the clock set to BNC or ADAT, the Pulse shows "no lock".
-- Not captured: delay compensation (`01 10 00/01` PROBABLE), MADI/Dante specifics, meters.
+- Not captured: delay compensation (`01 10 00/01` PROBABLE), MADI/Dante specifics, meter scale.

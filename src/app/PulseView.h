@@ -91,6 +91,11 @@ public:
         addAndMakeVisible(bright);
         keyClick.setButtonText("Key click"); keyClick.onClick = [this] { if (!guard) session.sendKeyClick(keyClick.getToggleState()); }; addAndMakeVisible(keyClick);
         keyClick.setToggleState(true, juce::dontSendNotification);
+        metersTgl.setButtonText("Signal lights (experimental)"); addAndMakeVisible(metersTgl);
+        metersTgl.setTooltip("Shows a light per channel when the unit reports signal. Only near-silent captures exist, so the scale and channel order are unverified.");
+        metersTgl.onClick = [this] { repaint(lvlR); };
+        btn(backupB, "Backup...", [this] { backupToFile(); }, "Save gains, levels, routing, clock, rate and headphone settings to a file");
+        btn(restoreB, "Restore...", [this] { restoreFromFile(); }, "Load a backup file and send it to the Pulse");
 
         unitNote.setColour(juce::Label::textColourId, col::dim); unitNote.setFont(11.5f);
         unitNote.setText("The Pulse does not report brightness or key click, so these only show what you set here.", juce::dontSendNotification);
@@ -101,10 +106,15 @@ public:
     }
     ~PulseView() override { link.close(); }
 
+    // Starts a session without opening ports (replaying a capture in tests and screenshots).
+    void beginReplay() { session.connect(juce::Time::getMillisecondCounter()); }
+
     // Everything the Pulse sends ends up here. Also usable to replay a captured connect (tests, screenshots).
     void feedSysEx(const wm::pulse16::Bytes& m) {
         session.onSysEx(m);
-        if (session.connected() && session.haveState() && !controlsOn) { stopTimer(); statusLab.setText("Connected", juce::dontSendNotification); setControlsEnabled(true); }
+        const bool isMeter = m.size() == 46 && m[9] == 0x04;
+        if (session.connected() && session.haveState() && !controlsOn) { statusLab.setText("Connected", juce::dontSendNotification); setControlsEnabled(true); }
+        if (isMeter) { if (metersTgl.getToggleState()) repaint(lvlR); return; }    // 4.5 polls a second: do not rebuild every control
         refreshFromState();
     }
 
@@ -119,6 +129,13 @@ public:
             g.setColour(col::teal); g.drawText("INPUT GAIN  1-16", x0, lvlR.getY() + 5, 16 * sw, 18, juce::Justification::centred);
             g.setColour(col::orange); g.drawText("OUTPUT LEVEL  1-16", mid, lvlR.getY() + 5, 16 * sw, 18, juce::Justification::centred);
             g.setColour(col::dim.withAlpha(0.7f)); g.fillRect(float(mid) - 1.0f, float(lvlR.getY() + 8), 2.0f, float(lvlR.getHeight() - 16));
+            if (metersTgl.getToggleState() && session.state().metersKnown) {   // experimental signal lights, order unverified
+                for (int i = 0; i < 32; ++i) {
+                    bool on = wm::pulse16::signalPresent(session.state().meters[i]);
+                    g.setColour(on ? (i < 16 ? col::teal : col::orange) : juce::Colour(0xff3a3a42));
+                    g.fillEllipse(float(x0 + i * sw + sw / 2 - 3), float(lvlR.getY() + 25), 6.0f, 6.0f);
+                }
+            }
             g.setColour(col::dim); g.setFont(11.0f);
             for (int i = 0; i < 32; ++i) g.drawText(juce::String(i % 16 + 1), x0 + i * sw, lvlR.getBottom() - 15, sw, 14, juce::Justification::centred);
         }
@@ -150,9 +167,9 @@ public:
         presetR = row3.removeFromLeft(row3.getWidth() * 3 / 5); row3.removeFromLeft(8); unitR = row3;
 
         auto c = conn.reduced(12, 0).withTrimmedTop(26);
-        inLab.setBounds(c.removeFromLeft(48)); inBox.setBounds(c.removeFromLeft(200).reduced(0, 4)); c.removeFromLeft(10);
-        outLab.setBounds(c.removeFromLeft(58)); outBox.setBounds(c.removeFromLeft(200).reduced(0, 4)); c.removeFromLeft(10);
-        findB.setBounds(c.removeFromLeft(100).reduced(2, 4)); connectB.setBounds(c.removeFromLeft(90).reduced(2, 4)); c.removeFromLeft(10);
+        inLab.setBounds(c.removeFromLeft(48)); inBox.setBounds(c.removeFromLeft(170).reduced(0, 4)); c.removeFromLeft(8);
+        outLab.setBounds(c.removeFromLeft(58)); outBox.setBounds(c.removeFromLeft(170).reduced(0, 4)); c.removeFromLeft(8);
+        findB.setBounds(c.removeFromLeft(96).reduced(2, 4)); connectB.setBounds(c.removeFromLeft(80).reduced(2, 4)); backupB.setBounds(c.removeFromLeft(86).reduced(2, 4)); restoreB.setBounds(c.removeFromLeft(86).reduced(2, 4)); c.removeFromLeft(10);
         statusLab.setBounds(c);
 
         auto k = clockR.reduced(12, 0).withTrimmedTop(24);
@@ -166,7 +183,7 @@ public:
         auto h2 = h.removeFromTop(30); hpSrcLab.setBounds(h2.removeFromLeft(50)); hpSrc.setBounds(h2.removeFromLeft(120).reduced(0, 2)); h2.removeFromLeft(10);
         hpChLab.setBounds(h2.removeFromLeft(60)); hpCh.setBounds(h2.removeFromLeft(80).reduced(0, 2)); h2.removeFromLeft(8); hpMono.setBounds(h2.removeFromLeft(80));
 
-        auto l = lvlR.reduced(8, 0).withTrimmedTop(26);
+        auto l = lvlR.reduced(8, 0).withTrimmedTop(34);
         int sw = l.getWidth() / 32;
         l.removeFromBottom(14);
         for (int i = 0; i < 16; ++i) inGain[size_t(i)].setBounds(l.getX() + i * sw, l.getY(), sw, l.getHeight());
@@ -178,7 +195,7 @@ public:
 
         auto u = unitR.reduced(12, 0).withTrimmedTop(24);
         auto u1 = u.removeFromTop(26); brLab.setBounds(u1.removeFromLeft(120)); bright.setBounds(u1);
-        keyClick.setBounds(u.removeFromTop(26));
+        auto u2 = u.removeFromTop(26); keyClick.setBounds(u2.removeFromLeft(110)); metersTgl.setBounds(u2);
         unitNote.setBounds(u.removeFromTop(34));
     }
     void mouseUp(const juce::MouseEvent& e) override {
@@ -208,13 +225,22 @@ private:
     void connect() {
         if (!openSelected()) { statusLab.setText("Pick a MIDI in and out port", juce::dontSendNotification); return; }
         statusLab.setText("Waiting for the Pulse...", juce::dontSendNotification);
-        session.connect(); waitTicks = 0; startTimerHz(10);
+        session.connect(juce::Time::getMillisecondCounter()); startTimerHz(10);
     }
-    void timerCallback() override {   // connect timeout
-        if (controlsOn) { stopTimer(); return; }
-        if (++waitTicks > 15) {
-            stopTimer(); link.close(); setControlsEnabled(false);
-            statusLab.setText("No answer. Check the cables (MIDI in and out may be swapped) and that RemoteFish is closed.", juce::dontSendNotification);
+    // 10 Hz: runs the session clock (meter polling is also the keep-alive) and reports connection loss.
+    void timerCallback() override {
+        session.tick(juce::Time::getMillisecondCounter());
+        switch (session.status()) {
+            case wm::pulse16::Status::NoAnswer:
+                link.close(); setControlsEnabled(false); stopTimer();
+                statusLab.setText("No answer. Check the cables (MIDI in and out may be swapped) and that RemoteFish is closed.", juce::dontSendNotification); break;
+            case wm::pulse16::Status::Lost:
+                if (controlsOn) { setControlsEnabled(false); statusLab.setText("Connection lost. Press Connect to try again.", juce::dontSendNotification); } break;
+            case wm::pulse16::Status::Connected:
+                if (!controlsOn && session.haveState()) { setControlsEnabled(true); statusLab.setText("Connected", juce::dontSendNotification); }
+                else if (controlsOn && statusLab.getText().startsWith("Connection lost")) statusLab.setText("Connected", juce::dontSendNotification);
+                break;
+            default: break;
         }
     }
     // Find: try each in/out pair with the same device name first, then wait for the probe answer.
@@ -229,11 +255,11 @@ private:
         auto [i, o] = scanList[size_t(scanIdx)];
         statusLab.setText("Trying " + ins[i].name + "...", juce::dontSendNotification);
         if (!link.open(ins[i].identifier, outs[o].identifier)) { ++scanIdx; scanNext(); return; }
-        session.connect();
+        session.connect(juce::Time::getMillisecondCounter());
         juce::Timer::callAfterDelay(500, [safe = juce::Component::SafePointer<PulseView>(this), idx = scanIdx] {
             if (safe == nullptr || safe->scanIdx != idx) return;
             if (safe->session.connected()) { auto [ii, oo] = safe->scanList[size_t(idx)]; safe->inBox.setSelectedId(ii + 1, juce::dontSendNotification); safe->outBox.setSelectedId(oo + 1, juce::dontSendNotification);
-                safe->scanIdx = 1 << 20; safe->waitTicks = 0; safe->startTimerHz(10); }
+                safe->scanIdx = 1 << 20; safe->startTimerHz(10); }
             else { ++safe->scanIdx; safe->scanNext(); }
         });
     }
@@ -246,9 +272,28 @@ private:
             .withMessage("This overwrites preset " + juce::String(n) + " stored in the Pulse with its current settings.").withButton("Save").withButton("Cancel").withAssociatedComponent(this),
             [this, n](int result) { if (result == 1) session.savePresetSlot(n); });
     }
+    void backupToFile() {
+        chooser = std::make_unique<juce::FileChooser>("Save Pulse 16 backup", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("pulse16-backup.txt"), "*.txt");
+        chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting, [this](const juce::FileChooser& fc) {
+            auto f = fc.getResult(); if (f == juce::File()) return;
+            statusLab.setText(f.replaceWithText(wm::pulse16::toText(session.state())) ? "Backup saved: " + f.getFileName() : "Could not write " + f.getFileName(), juce::dontSendNotification);
+        });
+    }
+    void restoreFromFile() {
+        chooser = std::make_unique<juce::FileChooser>("Restore Pulse 16 backup", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory), "*.txt");
+        chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& fc) {
+            auto f = fc.getResult(); if (!f.existsAsFile()) return;
+            wm::pulse16::Pulse16State b;
+            if (!wm::pulse16::fromText(f.loadFileAsString().toStdString(), b)) { statusLab.setText("Not a valid Pulse 16 backup file", juce::dontSendNotification); return; }
+            juce::AlertWindow::showAsync(juce::MessageBoxOptions().withIconType(juce::MessageBoxIconType::WarningIcon).withTitle("Restore backup")
+                .withMessage("This sends the saved gains, levels, routing, clock, sample rate and headphone settings to the Pulse.").withButton("Restore").withButton("Cancel").withAssociatedComponent(this),
+                [this, b](int result) { if (result == 1) { int n = session.applyState(b); statusLab.setText("Restored (" + juce::String(n) + " settings sent)", juce::dontSendNotification); refreshFromState(); } });
+        });
+    }
     void setControlsEnabled(bool on) {
         controlsOn = on;
-        for (juce::Component* c : std::initializer_list<juce::Component*>{&clockBox, &rateBox, &resendRateB, &hpVol, &hpSrc, &hpCh, &hpMono, &bright, &keyClick}) c->setEnabled(on);
+        for (juce::Component* c : std::initializer_list<juce::Component*>{&clockBox, &rateBox, &resendRateB, &hpVol, &hpSrc, &hpCh, &hpMono, &bright, &keyClick, &metersTgl, &backupB}) c->setEnabled(on);
+        restoreB.setEnabled(on);
         for (auto& s : inGain) s.setEnabled(on);
         for (auto& s : outLvl) s.setEnabled(on);
         for (auto& b : loadB) b.setEnabled(on);
@@ -270,11 +315,11 @@ private:
     }
 
     PulseLink link; wm::pulse16::Session session;
-    juce::Array<juce::MidiDeviceInfo> ins, outs; std::vector<std::pair<int, int>> scanList; int scanIdx = 0, waitTicks = 0; bool guard = false, controlsOn = false;
+    juce::Array<juce::MidiDeviceInfo> ins, outs; std::vector<std::pair<int, int>> scanList; int scanIdx = 0; bool guard = false, controlsOn = false;
     juce::Rectangle<int> conn, clockR, hpR, lvlR, routeR, presetR, unitR;
     juce::Label unitNote, inLab, outLab, statusLab, clockLab, rateLab, clockHint, hpLab, hpSrcLab, hpChLab, brLab;
     juce::ComboBox inBox, outBox, clockBox, rateBox, hpSrc, hpCh;
-    juce::TextButton findB, connectB, resendRateB; std::array<juce::TextButton, 6> loadB, saveB;
+    juce::TextButton findB, connectB, resendRateB, backupB, restoreB; juce::ToggleButton metersTgl; std::unique_ptr<juce::FileChooser> chooser; std::array<juce::TextButton, 6> loadB, saveB;
     juce::Slider hpVol, bright; juce::ToggleButton hpMono, keyClick; std::array<juce::Slider, 16> inGain, outLvl;
 };
 

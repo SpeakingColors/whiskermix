@@ -3,84 +3,80 @@
 // Source: USBPcap captures of RemoteFish 2.1 (firmware v5.04, ADAT-only DX), Oct 2026.
 // Every value here was seen on the wire; items marked PROBABLE or UNVERIFIED were not proven.
 #pragma once
-#include <cstdint>
-#include <initializer_list>
-#include <vector>
 #include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstdlib>
+#include <initializer_list>
+#include <sstream>
+#include <string>
+#include <vector>
 
 namespace wm::pulse16 {
 
 using Bytes = std::vector<uint8_t>;
 
-// Bytes after F0 00 11 22. UNVERIFIED: taken from one unit; may be per device.
-// Learn it from the unit's reply to the probe if it differs.
-inline constexpr uint8_t kId[5] = {0x0B, 0x3C, 0x45, 0x4F, 0x0B};
+// Bytes after F0 00 11 22: five id bytes. The probe uses zeros; the unit's probe answer carries its real id, which
+// Session learns and uses for every later frame (do not hardcode it, it may differ per unit).
+using Id = std::array<uint8_t, 5>;
+inline constexpr Id kBroadcastId{0, 0, 0, 0, 0};
 
-inline Bytes frame(std::initializer_list<uint8_t> body) {
-    Bytes f{0xF0, 0x00, 0x11, 0x22, kId[0], kId[1], kId[2], kId[3], kId[4]};
-    f.insert(f.end(), body.begin(), body.end());
-    f.push_back(0xF7);
-    return f;
-}
+// Frame builders for one unit id. All values were seen on the wire unless marked PROBABLE or UNVERIFIED.
+struct Frames {
+    Id id = kBroadcastId;
 
-// Connect sequence seen from RemoteFish: probe (reply starts 03 00), then 02 01, then 01 04 01.
-// WARNING: 01 04 01 also selects headphone source Analog Out, do not replay blindly.
-inline Bytes probe() { return {0xF0,0x00,0x11,0x22,0x00,0x00,0x00,0x00,0x00,0x02,0x00,0xF7}; }
-inline Bytes hello() { return frame({0x02, 0x01}); }
-inline Bytes meterPoll() { return frame({0x02, 0x04}); } // about every 0.22 s; reply 04 00 01 + 32 bytes (undecoded)
+    Bytes frame(std::initializer_list<uint8_t> body) const {
+        Bytes f{0xF0, 0x00, 0x11, 0x22, id[0], id[1], id[2], id[3], id[4]};
+        f.insert(f.end(), body.begin(), body.end());
+        f.push_back(0xF7);
+        return f;
+    }
 
-// Faders. ch is 1..16.
-// Input gain: 0..28 dB. CONFIRMED.
-inline Bytes inputGain(int ch, int dB) {
-    return frame({0x10, uint8_t(ch - 1), uint8_t(std::clamp(dB, 0, 28))});
-}
-// Output level: dB <= 0, sent as 28 + dB (0x1C = 0 dB). CONFIRMED. Lowest value not verified here.
-inline Bytes outputLevel(int ch, int dB) {
-    return frame({0x10, uint8_t(0x0F + ch), uint8_t(std::clamp(28 + dB, 0, 28))});
-}
+    // Connect sequence seen from RemoteFish: probe (reply starts 03 00 and carries the id), then 02 01.
+    // RemoteFish also sends 01 04 01 which selects headphone source Analog Out: WhiskerMix does not.
+    static Bytes probe() { return {0xF0,0x00,0x11,0x22,0x00,0x00,0x00,0x00,0x00,0x02,0x00,0xF7}; }
+    Bytes hello() const { return frame({0x02, 0x01}); }          // the unit answers with its state blocks
+    Bytes meterPoll() const { return frame({0x02, 0x04}); }      // RemoteFish polls about every 0.22 s; reply: see parseMeters
 
-// Routing matrix cell. row = output block, col = input block (0-based, screen order).
-// col 0 ANALOG IN 1-8, 1 ANALOG IN 9-16, 2 ADAT IN 1-8, 3 ADAT 9-16, 4 ADAT 17-24, 5 ADAT 25-32.
-// Rows and cols 4 and up are a guess (MADI not captured).
-inline Bytes route(int row, int col) { return frame({0x11, uint8_t(row), uint8_t(col)}); }
+    // Faders. ch is 1..16.
+    Bytes inputGain(int ch, int dB) const { return frame({0x10, uint8_t(ch - 1), uint8_t(std::clamp(dB, 0, 28))}); }      // 0..28 dB. CONFIRMED
+    Bytes outputLevel(int ch, int dB) const { return frame({0x10, uint8_t(0x0F + ch), uint8_t(std::clamp(28 + dB, 0, 28))}); } // sent as 28 + dB (dB <= 0). CONFIRMED, lowest value not verified
 
-// Headphone. CONFIRMED unless noted.
-inline Bytes headphoneVolume(int vv) { return frame({0x01, 0x03, uint8_t(std::clamp(vv, 0, 79))}); } // 0 = Off, dB = vv - 79
-inline Bytes headphoneVolumeDb(int dB) { return headphoneVolume(79 + dB); }                         // dB -78..0
-inline Bytes headphoneMute(bool on) { return frame({0x05, 0x00, 0x06, uint8_t(on ? 1 : 0)}); }      // PROBABLE
+    // Routing matrix cell. row = output block, col = input block (0-based, screen order).
+    // col 0 ANALOG IN 1-8, 1 ANALOG IN 9-16, 2 ADAT IN 1-8, 3 ADAT 9-16, 4 ADAT 17-24, 5 ADAT 25-32, 6..13 MADI IN 1-8 .. 57-64.
+    Bytes route(int row, int col) const { return frame({0x11, uint8_t(row), uint8_t(col)}); }
+
+    // Headphone. CONFIRMED unless noted.
+    Bytes headphoneVolume(int vv) const { return frame({0x01, 0x03, uint8_t(std::clamp(vv, 0, 79))}); } // 0 = Off, dB = vv - 79
+    Bytes headphoneVolumeDb(int dB) const { return headphoneVolume(79 + dB); }                          // dB -78..0
+    Bytes headphoneMute(bool on) const { return frame({0x05, 0x00, 0x06, uint8_t(on ? 1 : 0)}); }       // PROBABLE
+    Bytes headphoneSource(int src) const { return frame({0x01, 0x04, uint8_t(src)}); }                  // HpSource
+    Bytes headphoneStereo(int firstCh) const { return frame({0x01, 0x05, uint8_t(0x40 + (firstCh - 1) / 2)}); } // pair starting at odd channel
+    Bytes headphoneMono(int ch) const { return frame({0x01, 0x05, uint8_t(ch - 1)}); }
+
+    // Clock sync source. CONFIRMED. Master = the Pulse's own clock. Follow ADAT only if the other device is master.
+    Bytes clockSource(int c) const { return frame({0x01, 0x01, uint8_t(c)}); }                           // Clock
+
+    // Master sync frequency, CONFIRMED by dropdown order: 00 32k, 01 44.1k, 02 48k, 03 64k, 04 88.2k, 05 96k, 06 128k, 07 176.4k, 08 192k.
+    // The GUI shows 48 kHz even when the unit runs another rate, and re-picking the shown value sends nothing,
+    // so always send this explicitly. WARNING: on the ADAT-only DX, RemoteFish sent this same 01 02 command for its MIDI routing,
+    // MADI 96k frame, MADI short frame and BNC termination controls. Do NOT map those to 01 02; their real commands are unknown.
+    Bytes sampleRate(int r) const { return frame({0x01, 0x02, uint8_t(r)}); }                            // Rate
+
+    Bytes displayBrightness(int v) const { return frame({0x01, 0x0E, uint8_t(std::clamp(v, 0, 15))}); } // 0 darkest, 15 brightest. CONFIRMED
+    Bytes keyClick(bool on) const { return frame({0x01, 0x0D, uint8_t(on ? 1 : 0)}); }                  // PROBABLE
+    // Language 00 = English PROBABLE (do not expose others). Delay compensation 01 10 00/01 PROBABLE.
+    // Not implemented (command unknown): MIDI routing, MADI 96k frame, MADI short frame, BNC termination.
+
+    // Presets, slots 1..6. CONFIRMED. Save N = 02 07 (N-1), ack 34 (overwrites the slot).
+    // Load N = 02 06 (N-1) 07, ack 35, then the unit sends its state blocks. Headphone volume is not part of a preset.
+    Bytes savePreset(int n) const { return frame({0x02, 0x07, uint8_t(std::clamp(n, 1, 6) - 1)}); }
+    Bytes loadPreset(int n) const { return frame({0x02, 0x06, uint8_t(std::clamp(n, 1, 6) - 1), 0x07}); }
+};
+
 enum class HpSource : uint8_t { AnalogIn, AnalogOut, AdatIn, AdatOut, MadiIn, MadiOut, DanteIn, DanteOut };
-inline Bytes headphoneSource(HpSource s) { return frame({0x01, 0x04, uint8_t(s)}); }
-// Channel, source Analog Out. Stereo pair starting at odd channel, mono single channel.
-inline Bytes headphoneStereo(int firstCh) { return frame({0x01, 0x05, uint8_t(0x40 + (firstCh - 1) / 2)}); }
-inline Bytes headphoneMono(int ch) { return frame({0x01, 0x05, uint8_t(ch - 1)}); }
-
-// Clock sync source. CONFIRMED. Master = the Pulse's own clock. Follow ADAT only if the other device is master.
 enum class Clock : uint8_t { Master = 0, Adat = 1, Bnc = 2 };
-inline Bytes clockSource(Clock c) { return frame({0x01, 0x01, uint8_t(c)}); }
-
-// Master sync frequency (sample rate when the Pulse is clock master). CONFIRMED by dropdown order.
-// 00 32k, 01 44.1k, 02 48k, 03 64k, 04 88.2k, 05 96k, 06 128k, 07 176.4k, 08 192k.
-// The GUI shows 48 kHz even when the unit runs another rate, and re-picking the shown value sends nothing,
-// so WhiskerMix must send this explicitly on connect.
 enum class Rate : uint8_t { k32, k44_1, k48, k64, k88_2, k96, k128, k176_4, k192 };
-inline Bytes sampleRate(Rate r) { return frame({0x01, 0x02, uint8_t(r)}); }
-// WARNING: on the ADAT-only DX, RemoteFish sent this same 01 02 command for its MIDI routing, MADI 96k frame,
-// MADI short frame and BNC termination controls (their index went into the rate byte). Do NOT map those to 01 02.
-// The real commands for them are unknown.
-
-inline Bytes displayBrightness(int v) { return frame({0x01, 0x0E, uint8_t(std::clamp(v, 0, 15))}); } // 0 darkest, 15 brightest. CONFIRMED
-inline Bytes keyClick(bool on) { return frame({0x01, 0x0D, uint8_t(on ? 1 : 0)}); }    // PROBABLE
-// Language: 00 = English PROBABLE. Do not expose others until captured.
-// Not implemented (command unknown): MIDI routing, MADI 96k frame, MADI short frame, BNC termination.
-// Delay compensation: 01 10 00/01 PROBABLE only.
-
-// Presets, slots 1..6. CONFIRMED (save 1 to 6 then load 1 to 6 capture).
-// Save N = 02 07 (N-1), ack 34. Load N = 02 06 (N-1) 07, ack 35, then the unit sends its state:
-// a 47 byte block, 50 00 (gains), 51 00 (routing), 12 00 and 13 00 blocks (not decoded).
-// RemoteFish follows every Load with 01 04 01 (headphone source Analog Out).
-// Headphone volume is not part of a preset. Save overwrites the stored slot.
-inline Bytes savePreset(int n) { return frame({0x02, 0x07, uint8_t(std::clamp(n, 1, 6) - 1)}); }
-inline Bytes loadPreset(int n) { return frame({0x02, 0x06, uint8_t(std::clamp(n, 1, 6) - 1), 0x07}); }
 
 // ---- Helpers for the UI (kept here so they are tested without JUCE) ----
 // RemoteFish labels input gain as a reference level: dBu = 20 - gain (0 dB gain = +20 dBu, 28 dB gain = -8 dBu).
@@ -120,7 +116,19 @@ struct Pulse16State {
     Clock clock = Clock::Master;   // valid only when clockKnown: set from echoes, the connect blocks holding it are not decoded yet
     Rate rate = Rate::k48;         // valid only when rateKnown
     bool clockKnown = false, rateKnown = false;
+    // Meter poll reply (02 04): 32 raw bytes. EXPERIMENTAL: only near-silent captures exist (values 0 to 3), so the scale is
+    // unvalidated; 0 or 1 = no signal, 2 or more = signal. Assumed order: 16 inputs then 16 outputs (UNVERIFIED).
+    uint8_t meters[32]{};
+    bool metersKnown = false;
 };
+inline bool signalPresent(uint8_t raw) { return raw >= 2; }
+inline bool parseMeters(const Bytes& m, Pulse16State& s) {
+    // F0 00 11 22 <id5> 04 00 <32 meter bytes> 01 01 F7 (46 bytes). The two trailing 01 are constant in every capture.
+    if (m.size() != 46 || m[9] != 0x04 || m[10] != 0x00) return false;
+    for (int i = 0; i < 32; ++i) s.meters[i] = m[11 + i];
+    s.metersKnown = true;
+    return true;
+}
 inline bool parseGains(const Bytes& m, Pulse16State& s) {
     if (m.size() != 44 || m[9] != 0x50 || m[10] != 0x00) return false;
     for (int i = 0; i < 16; ++i) { s.inputGainDb[i] = m[11 + i]; s.outputLevelDb[i] = int(m[27 + i]) - 28; }
@@ -140,6 +148,38 @@ inline bool parseRouting(const Bytes& m, Pulse16State& s) {
     if (m.size() != 34 || m[9] != 0x51 || m[10] != 0x00) return false;
     for (int i = 0; i < 22; ++i) s.routeCol[i] = m[11 + i];
     return true;
+}
+
+
+// ---- Backup file (plain text, one key per line) so a setup can be saved and restored ----
+inline std::string toText(const Pulse16State& s) {
+    std::ostringstream o;
+    o << "whiskermix-pulse16-backup 1\n";
+    auto list = [&](const char* k, const int* v, int n) { o << k << "="; for (int i = 0; i < n; ++i) o << (i ? "," : "") << v[i]; o << "\n"; };
+    list("gain", s.inputGainDb, 16); list("level", s.outputLevelDb, 16);
+    o << "route="; for (int i = 0; i < 22; ++i) o << (i ? "," : "") << int(s.routeCol[i]); o << "\n";
+    o << "clock=" << int(s.clock) << "\nrate=" << int(s.rate) << "\nhpvol=" << s.hpVolumeVv << "\nhpsrc=" << s.hpSource << "\nhpch=" << s.hpChannelCode << "\n";
+    return o.str();
+}
+inline bool fromText(const std::string& t, Pulse16State& out) {
+    std::istringstream in(t); std::string line;
+    if (!std::getline(in, line) || line.rfind("whiskermix-pulse16-backup 1", 0) != 0) return false;
+    Pulse16State s; int got = 0;
+    auto nums = [](const std::string& v) { std::vector<int> r; std::stringstream ss(v); std::string x; while (std::getline(ss, x, ',')) r.push_back(std::atoi(x.c_str())); return r; };
+    while (std::getline(in, line)) {
+        auto eq = line.find('='); if (eq == std::string::npos) continue;
+        std::string k = line.substr(0, eq); auto v = nums(line.substr(eq + 1));
+        if (k == "gain" && v.size() == 16) { for (int i = 0; i < 16; ++i) s.inputGainDb[i] = std::clamp(v[size_t(i)], 0, 28); ++got; }
+        else if (k == "level" && v.size() == 16) { for (int i = 0; i < 16; ++i) s.outputLevelDb[i] = std::clamp(v[size_t(i)], -28, 0); ++got; }
+        else if (k == "route" && v.size() == 22) { for (int i = 0; i < 22; ++i) s.routeCol[i] = uint8_t(std::clamp(v[size_t(i)], 0, 13)); ++got; }
+        else if (k == "clock" && v.size() == 1 && v[0] >= 0 && v[0] <= 2) { s.clock = Clock(v[0]); s.clockKnown = true; ++got; }
+        else if (k == "rate" && v.size() == 1 && v[0] >= 0 && v[0] <= 8) { s.rate = Rate(v[0]); s.rateKnown = true; ++got; }
+        else if (k == "hpvol" && v.size() == 1) { s.hpVolumeVv = std::clamp(v[0], 0, 79); ++got; }
+        else if (k == "hpsrc" && v.size() == 1) { s.hpSource = std::clamp(v[0], 0, 7); ++got; }
+        else if (k == "hpch" && v.size() == 1) { s.hpChannelCode = v[0]; ++got; }
+    }
+    if (got != 8) return false;       // every key must be present and valid
+    s.settingsKnown = true; out = s; return true;
 }
 
 } // namespace wm::pulse16
