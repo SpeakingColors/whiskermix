@@ -25,6 +25,7 @@ public:
         if (m.size() < 12) return;
         if (parseGains(m, st_)) { haveGains_ = true; return; }
         if (parseRouting(m, st_)) { haveRouting_ = true; return; }
+        if (parseSettings(m, st_)) return;
         if (m.size() == 13 && m[9] == 0x01) {          // echo of a setting we (or the front panel) changed
             if (m[10] == 0x01 && m[11] <= 2) { st_.clock = Clock(m[11]); st_.clockKnown = true; }
             else if (m[10] == 0x02 && m[11] <= 8) { st_.rate = Rate(m[11]); st_.rateKnown = true; }
@@ -43,6 +44,12 @@ public:
     // The Pulse screen can show 48 kHz while the unit runs another rate, and re-picking the shown value sends nothing in
     // RemoteFish. So always send the rate explicitly, even when the model already says it.
     void setRate(Rate r) { tr_.sendSysEx(sampleRate(r)); st_.rate = r; st_.rateKnown = true; }
+    void sendHeadphoneVolume(int vv) { tr_.sendSysEx(headphoneVolume(vv)); st_.hpVolumeVv = std::clamp(vv, 0, 79); }
+    void sendHeadphoneSource(HpSource s) { tr_.sendSysEx(headphoneSource(s)); st_.hpSource = int(s); }
+    void sendHeadphoneStereo(int firstCh) { tr_.sendSysEx(headphoneStereo(firstCh)); st_.hpChannelCode = 0x40 + (firstCh - 1) / 2; }
+    void sendHeadphoneMono(int ch) { tr_.sendSysEx(headphoneMono(ch)); st_.hpChannelCode = ch - 1; }
+    void sendBrightness(int v) { tr_.sendSysEx(displayBrightness(v)); }
+    void sendKeyClick(bool on) { tr_.sendSysEx(keyClick(on)); }
     void savePresetSlot(int n) { tr_.sendSysEx(savePreset(n)); }   // overwrites the stored slot
     void loadPresetSlot(int n) { tr_.sendSysEx(loadPreset(n)); haveGains_ = haveRouting_ = false; } // unit replies with new state
 

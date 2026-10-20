@@ -50,6 +50,12 @@ int main() {
     assert(st.outputLevelDb[0] == 0 && st.outputLevelDb[15] == 0);
     assert(st.routeCol[0] == 2 && st.routeCol[1] == 3 && st.routeCol[2] == 0 && st.routeCol[3] == 1 && st.routeCol[13] == 13 && st.routeCol[21] == 13);
     assert(!st.clockKnown && !st.rateKnown);
+    // the 47 byte block from a real connect (clock BNC, 48k, headphone -40 dB, Analog Out, 33+34, preset 1)
+    s.onSysEx(unhex("f00011220b3c454f0b010000020227015001000101000000010f0000000000000000000000000000004600200001f7"));
+    assert(st.settingsKnown && st.clock == Clock::Bnc && st.rate == Rate::k48 && st.hpVolumeVv == 0x27 && st.hpVolumeVv - 79 == -40);
+    assert(st.hpSource == 1 && st.hpChannelCode == 0x50 && st.activePreset == 1);
+    s.onSysEx(unhex("f00011220b3c454f0b010000000227015001000101000000010f0000000000000000000000000000004600200003f7"));
+    assert(st.clock == Clock::Master && st.activePreset == 3);
     // echoes update the model
     s.onSysEx(unhex("f00011220b3c454f0b010202f7")); assert(s.state().rateKnown && s.state().rate == Rate::k48);
     s.onSysEx(unhex("f00011220b3c454f0b010101f7")); assert(s.state().clockKnown && s.state().clock == Clock::Adat);
@@ -61,6 +67,16 @@ int main() {
     s.setInputGain(3, 99); assert(s.state().inputGainDb[2] == 28);
     // loading a preset invalidates the state until the unit replies
     s.loadPresetSlot(2); assert(!s.haveState() && hex(r.sent.back()) == "f00011220b3c454f0b02060107f7");
+    // UI helpers
+    assert(inputGainToDbu(0) == 20 && inputGainToDbu(14) == 6 && inputGainToDbu(28) == -8 && dbuToInputGain(20) == 0 && dbuToInputGain(99) == 0 && dbuToInputGain(-99) == 28);
+    assert(outputLevelToDbu(0) == 20 && dbuToOutputLevel(20) == 0 && dbuToOutputLevel(-30) == -28);
+    { uint8_t raw[] = {0x00, 0x11, 0x22, 0x00}; auto f = withFraming(raw, 4); assert(f.size() == 6 && f.front() == 0xF0 && f.back() == 0xF7); }
+    { int ch = 0; bool stereo = false;
+      assert(decodeHeadphoneChannel(0x50, ch, stereo) && ch == 33 && stereo);
+      assert(decodeHeadphoneChannel(0x40, ch, stereo) && ch == 1 && stereo);
+      assert(decodeHeadphoneChannel(0x20, ch, stereo) && ch == 33 && !stereo);
+      assert(decodeHeadphoneChannel(0x00, ch, stereo) && ch == 1 && !stereo);
+      assert(!decodeHeadphoneChannel(0x60, ch, stereo)); }
     printf("pulse16 ok\n");
     return 0;
 }

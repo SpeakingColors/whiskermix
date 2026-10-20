@@ -10,7 +10,8 @@ Design phase. The interactive mockups work in a browser; the app and the hardwar
 ## What it will do
 - Mixer: inputs, playbacks, outputs, mute (red), solo (yellow), per-channel settings panel
 - Routing and aggregation matrix
-- MIDI hub with filters, Pulse 16 over DIN MIDI
+- MIDI hub with filters
+- Pulse 16 page over DIN MIDI SysEx (clock, sample rate, headphones, levels, routing, presets); see docs/PULSE16-PROTOCOL.md
 - Own FX (the Digiface has no DSP): reverb, echo, chorus, compressor, limiter, EQ, also on inputs
 - Snapshots, talkback, dim, MIDI/Mackie and OSC control
 

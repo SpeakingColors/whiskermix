@@ -8,6 +8,7 @@
 #include "RoutingView.h"
 #include "ReverbView.h"
 #include "MidiView.h"
+#include "PulseView.h"
 #include "SettingsView.h"
 #include "Look.h"
 #include "../mixer/MidiHub.h"
@@ -27,6 +28,7 @@ public:
         tabs.addTab("Routing", col::panel, &routing, false);
         tabs.addTab("Reverb / Delay", col::panel, &reverb, false);
         tabs.addTab("MIDI hub", col::panel, &midi, false);
+        tabs.addTab("Pulse 16", col::panel, &pulse, false);
         tabs.addTab("Settings", col::panel, &settingsView, false);
         tabs.setTabBarDepth(40); tabs.setOutline(0);
         midi.page.onChanged = [this] { saveHub(); };
@@ -199,7 +201,7 @@ private:
             if (wm::mixer::fromJson(f.loadFileAsString().toStdString(), s, rt)) { undo.push(current()); apply({s, rt}); } });
     }
     wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; MixerView mixerView; RoutingView routing; ReverbView reverb; wm::engine::AudioEngine& eng;
-    wm::mixer::MidiHub hub; MidiView midi; SettingsView settingsView; std::unique_ptr<juce::TooltipWindow> tipWin; int ticks = 0;
+    wm::mixer::MidiHub hub; MidiView midi; PulseView pulse; SettingsView settingsView; std::unique_ptr<juce::TooltipWindow> tipWin; int ticks = 0;
     juce::TabbedComponent tabs{juce::TabbedButtonBar::TabsAtTop};
     juce::TextButton undoB, redoB, addB, storeB, recallB, saveB, loadB; juce::ComboBox snapBox;
     wm::mixer::WorkspaceUndo undo; wm::mixer::Workspace lastWs; std::string last;
