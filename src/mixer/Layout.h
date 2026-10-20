@@ -59,9 +59,9 @@ inline std::vector<StripDef> studioLayout() {
         {"INSERT", R::HardwareOutput, false, Red, 0.0f, ""},
         {"PREAMP", R::HardwareOutput, false, Orange, 0.0f, "🎤"},
         {"PH", R::HardwareOutput, true, Grey, -10.0f, "🎧"},
-        // control room (2 strips)
-        {"iLoud Micro", R::ControlRoom, true, Grey, -27.6f, "🔉"},
+        // control room (2 strips): Main is bus 0 (the mix every strip plays to), iLoud Micro is Speaker B (bus 1)
         {"Main", R::ControlRoom, true, Grey, -42.1f, "🔊"},
+        {"iLoud Micro", R::ControlRoom, true, Grey, -27.6f, "🔉"},
     };
 }
 
@@ -71,9 +71,9 @@ inline int countRow(const std::vector<StripDef>& l, Row r) {
     return n;
 }
 
-// Builds the mixer and routing from a layout: inputs and playbacks become channels (in that order),
-// hardware outputs and control room become buses (in that order). Every strip starts routed to the first bus
-// (Main mix) at 0 dB like a fresh TotalMix submix, except strips that start at -inf.
+// Builds the mixer and routing from a layout: inputs and playbacks become channels (in that order); the control
+// room strips become the first buses (Main = bus 0, Speaker B = bus 1), the hardware outputs follow. Every strip
+// starts routed to Main at 0 dB like a fresh TotalMix submix, except strips that start at -inf.
 struct Built {
     Mixer mixer;
     RoutingMatrix routing;
@@ -87,18 +87,15 @@ inline Built buildFromLayout(const std::vector<StripDef>& l) {
     Built b(in + pb, out + cr);
     b.inputs = in; b.playbacks = pb; b.outputs = out; b.controlRoom = cr;
     int c = 0, u = 0;
+    auto busStrips = [&](Row r) { for (const auto& s : l) if (s.row == r) { auto& bus = b.mixer.state().buses[size_t(u)]; bus.name = s.name; bus.volumeDb = s.gainDb <= kNoRoute ? -120.0f : s.gainDb; ++u; } };
+    busStrips(Row::ControlRoom); busStrips(Row::HardwareOutput);
     for (const auto& s : l) {
         if (s.row == Row::HardwareInput || s.row == Row::SoftwarePlayback) {
             auto& ch = b.mixer.state().channels[size_t(c)];
             ch.name = s.name; ch.stereoLinked = s.stereo; ch.colour = s.colour; ch.emoji = s.emoji;
             ch.gainDb = s.gainDb <= kNoRoute ? -120.0f : s.gainDb;
-            // route to the main bus (the last bus = Main in the control room) at the strip's fader
-            if (b.routing.outputs() > 0 && s.gainDb > kNoRoute) b.routing.set(c, b.routing.outputs() - 1, 0.0f);
+            if (b.routing.outputs() > 0 && s.gainDb > kNoRoute) b.routing.set(c, 0, 0.0f);   // plays to Main
             ++c;
-        } else {
-            auto& bus = b.mixer.state().buses[size_t(u)];
-            bus.name = s.name; bus.volumeDb = s.gainDb <= kNoRoute ? -120.0f : s.gainDb;
-            ++u;
         }
     }
     return b;

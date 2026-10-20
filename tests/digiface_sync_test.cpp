@@ -19,8 +19,9 @@ int main() {
     CHECK(b.mixer.state().channels.size() == 20 && b.mixer.state().buses.size() == 10);
     CHECK(b.mixer.state().channels[0].name == "SYNTH" && b.mixer.state().channels[0].stereoLinked);
     CHECK(b.mixer.state().channels[11].name == "COMPUTER" && b.mixer.state().channels[11].gainDb == 0.0f);
-    CHECK(b.mixer.state().buses[9].name == "Main" && std::abs(b.mixer.state().buses[9].volumeDb + 42.1f) < 0.01f);
-    CHECK(b.routing.routed(11, 9) && !b.routing.routed(0, 9));   // COMPUTER plays to Main, SYNTH starts at -inf
+    CHECK(b.mixer.state().buses[0].name == "Main" && std::abs(b.mixer.state().buses[0].volumeDb + 42.1f) < 0.01f);
+    CHECK(b.mixer.state().buses[1].name == "iLoud Micro" && b.mixer.state().buses[2].name == "ADAT 5/6");
+    CHECK(b.routing.routed(11, 0) && !b.routing.routed(0, 0));   // COMPUTER plays to Main, SYNTH starts at -inf
 
     // Sync: first write sends everything, idle sends nothing
     RecordingTransport t;

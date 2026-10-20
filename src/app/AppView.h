@@ -55,6 +55,8 @@ public:
         snapBox.setEditableText(true); snapBox.setTextWhenNothingSelected("snapshot name");
         snapBox.onChange = [this] { if (snapBox.getSelectedId() > 0) recallSnap(snapBox.getText().toStdString()); };
         addAndMakeVisible(snapBox);
+        dfLabel.setJustificationType(juce::Justification::centredRight); dfLabel.setFont(juce::Font(12.0f)); dfLabel.setColour(juce::Label::textColourId, col::text.withAlpha(0.8f));
+        dfLabel.setTooltip("Digiface USB hardware mixer. Dry run: the same writes are made but nothing is sent (no device, no permission, or a test build)."); addAndMakeVisible(dfLabel);
         btn(saveB, "Save", [this] { save(); });
         btn(loadB, "Load", [this] { load(); });
         undoB.setTooltip("Undo the last change"); redoB.setTooltip("Redo"); addB.setTooltip("Add an input channel"); storeB.setTooltip("Store the whole mixer under the name in the snapshot box"); snapBox.setTooltip("Type a name and press Store; pick a name to recall it");
@@ -72,6 +74,8 @@ public:
         startTimerHz(30);
     }
     std::function<void(const std::string&)> onChannelAdded;
+    std::function<std::string()> digifaceStatus;   // shown at the right of the toolbar
+    std::function<void()> onWorkspaceLoaded;        // the hardware mixer resends everything
     void paint(juce::Graphics& g) override {
         g.fillAll(col::bg);
         // cat head logo + title
@@ -90,6 +94,7 @@ public:
         bar.removeFromLeft(10); snapBox.setBounds(bar.removeFromLeft(150).reduced(2)); storeB.setBounds(bar.removeFromLeft(64).reduced(2)); recallB.setBounds(bar.removeFromLeft(72).reduced(2));
         bar.removeFromLeft(10);
         for (auto* b : {&saveB, &loadB}) b->setBounds(bar.removeFromLeft(80).reduced(2));
+        dfLabel.setBounds(bar.removeFromRight(juce::jmin(360, bar.getWidth())).reduced(2));
         tabs.setBounds(r);
     }
 private:
@@ -136,6 +141,7 @@ private:
     void timerCallback() override {
         eng.sync();   // hand the latest edits to the audio thread
         if (++ticks >= 1800) { ticks = 0; if (wm::mixer::settings().autosave) autosave(); }
+        if (ticks % 15 == 0 && digifaceStatus) { auto t = juce::String(digifaceStatus()); if (t != dfLabel.getText()) dfLabel.setText(t, juce::dontSendNotification); }
         // Commit an undo step once the user lets go (no drag in progress) and the state differs from the last commit.
         if (juce::Desktop::getInstance().getMainMouseSource().isDragging()) return;
         if (sig() != last) { undo.push(lastWs); last = sig(); }
@@ -208,12 +214,12 @@ private:
         chooser->launchAsync(juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles, [this](const juce::FileChooser& c) {
             auto f = c.getResult(); if (!f.existsAsFile()) return;
             wm::mixer::State s = mx.state(); wm::mixer::RoutingMatrix keep = rt;
-            if (wm::mixer::fromJson(f.loadFileAsString().toStdString(), s, rt)) { undo.push(current()); apply({s, rt}); } });
+            if (wm::mixer::fromJson(f.loadFileAsString().toStdString(), s, rt)) { undo.push(current()); apply({s, rt}); if (onWorkspaceLoaded) onWorkspaceLoaded(); } });
     }
     wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; MixerView mixerView; RoutingView routing; ReverbView reverb; wm::engine::AudioEngine& eng;
     wm::mixer::MidiHub hub; MidiView midi; PulseView pulse; PulseHost pulseHost{pulse, pulseVp}; juce::Viewport pulseVp; SettingsView settingsView; std::unique_ptr<juce::TooltipWindow> tipWin; int ticks = 0;
     juce::TabbedComponent tabs{juce::TabbedButtonBar::TabsAtTop};
-    juce::TextButton undoB, redoB, addB, storeB, recallB, saveB, loadB; juce::ComboBox snapBox;
+    juce::TextButton undoB, redoB, addB, storeB, recallB, saveB, loadB; juce::ComboBox snapBox; juce::Label dfLabel;
     wm::mixer::WorkspaceUndo undo; wm::mixer::Workspace lastWs; std::string last;
     std::unique_ptr<juce::FileChooser> chooser;
 };

@@ -9,7 +9,9 @@
 #include "../pipewire/PipeWireMixer.h"
 #endif
 #include "../mixer/StateJson.h"
+#include "../mixer/Layout.h"
 #include "AppView.h"
+#include "DigifaceLink.h"
 
 class MainWindow : public juce::DocumentWindow {
 public:
@@ -29,8 +31,11 @@ public:
     const juce::String getApplicationVersion() override { return JUCE_APPLICATION_VERSION_STRING; }
     void initialise(const juce::String&) override {
         juce::LookAndFeel::setDefaultLookAndFeel(&look);
-        mixer = std::make_unique<wm::mixer::Mixer>(8, 2);
-        routing = std::make_unique<wm::mixer::RoutingMatrix>(8, 2);
+        // Starts from the studio layout (hardware inputs, software playback, hardware outputs, control room).
+        auto built = wm::mixer::buildFromLayout(wm::mixer::studioLayout());
+        mixer = std::make_unique<wm::mixer::Mixer>(built.mixer);
+        routing = std::make_unique<wm::mixer::RoutingMatrix>(built.routing);
+        inputs = built.inputs;
         engine = std::make_unique<wm::engine::AudioEngine>(*mixer, *routing);
         std::vector<std::string> ins, buses;
         for (auto& c : mixer->state().channels) ins.push_back(c.name);
@@ -43,6 +48,10 @@ public:
         if (pw.start(*engine, ins, buses)) audio = std::thread([this] { pw.run(); });
 #endif
         auto* view = new wmui::AppView(*mixer, *routing, *engine);
+        // Digiface hardware mixer: bus 0 = Main (control room), bus 1 = Speaker B (iLoud Micro).
+        digiface = std::make_unique<wmui::DigifaceLink>(*mixer, inputs, 0, mixer->state().buses.size() >= 2 ? 1 : -1);
+        view->digifaceStatus = [this] { return digiface->status(); };
+        view->onWorkspaceLoaded = [this] { digiface->resend(); };
 #ifndef WM_JUCE_AUDIO
         view->onChannelAdded = [this](const std::string& n) { pw.addInput(n); };
 #endif
@@ -54,7 +63,7 @@ public:
 #else
         pw.quit(); if (audio.joinable()) audio.join();
 #endif
-        window.reset(); juce::LookAndFeel::setDefaultLookAndFeel(nullptr); }
+        digiface.reset(); window.reset(); juce::LookAndFeel::setDefaultLookAndFeel(nullptr); }
 private:
     wmui::SodaLook look;
     std::unique_ptr<wm::mixer::Mixer> mixer;
@@ -68,5 +77,7 @@ private:
     std::thread audio;
 #endif
     std::unique_ptr<MainWindow> window;
+    std::unique_ptr<wmui::DigifaceLink> digiface;
+    int inputs = 0;
 };
 START_JUCE_APPLICATION(WhiskerMixApp)

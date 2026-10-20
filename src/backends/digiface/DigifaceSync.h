@@ -61,7 +61,9 @@ inline std::vector<Word> mainMonoOff() {
 
 class Sync {
 public:
-    explicit Sync(Transport& t) : tr_(t) {}
+    explicit Sync(Transport& t) : tr_(&t) {}
+    // Switch to another transport (the real device after a reconnect); everything is sent again on the next sync().
+    void setTransport(Transport& t) { tr_ = &t; invalidate(); }
 
     // Which hardware inputs the mixer channels map to: channel i -> hardware input `firstInput + i`.
     // Channels past `inputCount` (software playback) are not written: their bytes are not confirmed yet.
@@ -89,14 +91,14 @@ public:
                 if (ms) b = midSideOn();
                 else if (link) b = stereoOn();
                 else b = pairOff();
-                if (tr_.bulkOut(pack(b))) ++n;
+                if (tr_->bulkOut(pack(b))) ++n;
                 ms_ = ms; linked_ = link;
                 for (const auto& w : b) if (w.flag == 0) sent_[w.channel] = w.value;   // the burst set these gains
             }
         }
         // 2. main mono (before the gains: the captured OFF burst zeroes bytes 0x48..0x4F, so those gains are sent again below)
         if (int(mono_) != monoSent_) {
-            if (tr_.bulkOut(pack(mono_ ? mainMonoOn() : mainMonoOff()))) ++n;
+            if (tr_->bulkOut(pack(mono_ ? mainMonoOn() : mainMonoOff()))) ++n;
             monoSent_ = int(mono_);
             for (int b = 0x48; b <= 0x4F; ++b) sent_.erase(uint8_t(b));
         }
@@ -108,14 +110,14 @@ public:
                 if (val(sent_, x.channel, -1) != int(x.value)) { words.push_back(x); sent_[x.channel] = x.value; }
             }
         }
-        if (!words.empty() && tr_.bulkOut(pack(words))) ++n;
+        if (!words.empty() && tr_->bulkOut(pack(words))) ++n;
         // 4. main outputs: volume with dim, speaker B switch
         if (busA_ >= 0 && busA_ < int(st.buses.size())) {
             const float a = level(st.buses[size_t(busA_)]);
             const float b = (busB_ >= 0 && busB_ < int(st.buses.size())) ? level(st.buses[size_t(busB_)]) : -120.0f;
             std::vector<ControlWrite> cw = busB_ >= 0 ? speakerSelect(speakerB_ ? 1 : 0, a, b) : mainVolume(0, a);
             for (const auto& x : cw)
-                if (val(ctl_, x.index, -1) != int(x.value)) { if (tr_.controlOut(x)) ++n; ctl_[x.index] = x.value; }
+                if (val(ctl_, x.index, -1) != int(x.value)) { if (tr_->controlOut(x)) ++n; ctl_[x.index] = x.value; }
         }
         return n;
     }
@@ -126,7 +128,7 @@ public:
 private:
     static float level(const wm::mixer::Bus& b) { return b.volumeDb + (b.dim ? kDimDb : 0.0f); }
     template <class M, class K> static int val(const M& m, K k, int def = 0) { auto it = m.find(k); return it == m.end() ? def : it->second; }
-    Transport& tr_;
+    Transport* tr_;
     int first_ = 0, count_ = 0, busA_ = -1, busB_ = -1;
     bool speakerB_ = false, mono_ = false;
     int monoSent_ = 0;   // mono is assumed off at start; nothing is sent until it is switched
