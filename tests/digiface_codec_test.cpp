@@ -16,6 +16,8 @@ int main() {
     near(decodeGain(0x27FB), -10.1f, 0.05f, "-10.1 dB");
     near(decodeGain(0x8800), -6.02f, 0.02f, "mono sum");
     assert(encodeGain(0.0f) == 0x9000);
+    assert(encodeGain(-3.0f) == 0x8B53);        // exact vendor value from the "fader -3 (typed)" capture
+    assert(encodeGain(6.03f) == 0xA000);
     assert(encodeGain(6.0f) <= 0xA000);
     assert(encodeGain(-200.0f) == 0);
     near(decodeGain(encodeGain(-3.0f)), -3.0f, 0.02f, "roundtrip -3");

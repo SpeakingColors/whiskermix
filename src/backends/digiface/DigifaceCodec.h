@@ -33,11 +33,12 @@ struct ControlWrite {
 // Gain value: linear amplitude in two ranges.
 //   value <  0x8000: amplitude = value / 32768
 //   value >= 0x8000: amplitude = (value - 0x8000) / 4096
+// Truncated, not rounded: the vendor mixer writes 0x8B53 for a typed -3 dB (rounding would give 0x8B54).
 inline uint16_t encodeGain(float db) {
     if (db <= -120.0f) return 0;
-    const double amp = std::pow(10.0, double(db) / 20.0);
-    if (amp < 0.5) return uint16_t(std::lround(amp * 32768.0));
-    const long v = 0x8000 + std::lround(amp * 4096.0);
+    const double amp = std::min(2.0, std::pow(10.0, double(db) / 20.0));
+    if (amp < 0.5) return uint16_t(amp * 32768.0);
+    const long v = 0x8000 + long(amp * 4096.0);
     return uint16_t(std::min<long>(v, kGainTop));
 }
 
