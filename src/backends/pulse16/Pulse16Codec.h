@@ -97,8 +97,10 @@ inline bool decodeHeadphoneChannel(uint8_t code, int& firstCh, bool& stereo) {
     if (code <= 0x21) { firstCh = code + 1; stereo = false; return true; }                              // mono 1..34
     return false;
 }
-inline const char* kInputBlockNames[8] = {"ANALOG IN 1-8", "ANALOG IN 9-16", "ADAT IN 1-8", "ADAT IN 9-16", "ADAT IN 17-24", "ADAT IN 25-32", "MADI IN 1-8", "MADI IN 9-16"};
-inline const char* kOutputBlockNames[6] = {"ANALOG OUT 1-8", "ANALOG OUT 9-16", "ADAT OUT 1-8", "ADAT OUT 9-16", "ADAT OUT 17-24", "ADAT OUT 25-32"};
+inline const char* kInputBlockNames[14] = {"ANALOG IN 1-8", "ANALOG IN 9-16", "ADAT IN 1-8", "ADAT IN 9-16", "ADAT IN 17-24", "ADAT IN 25-32",
+    "MADI IN 1-8", "MADI IN 9-16", "MADI IN 17-24", "MADI IN 25-32", "MADI IN 33-40", "MADI IN 41-48", "MADI IN 49-56", "MADI IN 57-64"};
+inline const char* kOutputBlockNames[14] = {"ANALOG OUT 1-8", "ANALOG OUT 9-16", "ADAT OUT 1-8", "ADAT OUT 9-16", "ADAT OUT 17-24", "ADAT OUT 25-32",
+    "MADI OUT 1-8", "MADI OUT 9-16", "MADI OUT 17-24", "MADI OUT 25-32", "MADI OUT 33-40", "MADI OUT 41-48", "MADI OUT 49-56", "MADI OUT 57-64"};
 
 // ---- State blocks the Pulse sends after a Load (and probably on request) ----
 // 50 00 + 16 input gains (dB, 0..28) + 16 output levels (28 + dB). CONFIRMED against the user's setup.

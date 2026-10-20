@@ -111,21 +111,31 @@ public:
     void paint(juce::Graphics& g) override {
         g.fillAll(col::bg);
         drawCard(g, conn, "Connection"); drawCard(g, clockR, "Clock"); drawCard(g, hpR, "Headphones");
-        drawCard(g, lvlR, "Levels  (input gain left, output right, in dBu)"); drawCard(g, routeR, "Routing  (click a square to send a block of 8)");
+        drawCard(g, lvlR, "Levels (dBu)"); drawCard(g, routeR, "Routing  (click a square: that output block takes that input block)");
         drawCard(g, presetR, "Presets (stored in the Pulse)");  drawCard(g, unitR, "Unit settings");
-        g.setColour(col::dim); g.setFont(11.0f);
-        { int sw = (lvlR.getWidth() - 16) / 32; for (int i = 0; i < 32; ++i) g.drawText(juce::String(i % 16 + 1), lvlR.getX() + 8 + i * sw, lvlR.getBottom() - 15, sw, 14, juce::Justification::centred); }
-        // routing grid
-        const int lw = 120, hh = 22, cw = juce::jmax(46, (routeR.getWidth() - lw - 16) / 8), rh = 24;
-        g.setFont(11.0f);
-        for (int c = 0; c < 8; ++c) { g.setColour(col::title); g.drawText(wm::pulse16::kInputBlockNames[c], routeR.getX() + lw + c * cw, routeR.getY() + 24, cw, hh, juce::Justification::centred); }
-        for (int r = 0; r < 6; ++r) {
-            int y = routeR.getY() + 24 + hh + r * rh;
-            g.setColour(col::text); g.setFont(12.0f); g.drawText(wm::pulse16::kOutputBlockNames[r], routeR.getX() + 12, y, lw - 12, rh, juce::Justification::centredLeft);
-            for (int c = 0; c < 8; ++c) {
-                auto cell = juce::Rectangle<int>(routeR.getX() + lw + c * cw, y, cw, rh).reduced(3);
+        {   // levels: headings, divider and channel numbers
+            int sw = (lvlR.getWidth() - 16) / 32, x0 = lvlR.getX() + 8, mid = x0 + 16 * sw;
+            g.setFont(12.5f);
+            g.setColour(col::teal); g.drawText("INPUT GAIN  1-16", x0, lvlR.getY() + 5, 16 * sw, 18, juce::Justification::centred);
+            g.setColour(col::orange); g.drawText("OUTPUT LEVEL  1-16", mid, lvlR.getY() + 5, 16 * sw, 18, juce::Justification::centred);
+            g.setColour(col::dim.withAlpha(0.7f)); g.fillRect(float(mid) - 1.0f, float(lvlR.getY() + 8), 2.0f, float(lvlR.getHeight() - 16));
+            g.setColour(col::dim); g.setFont(11.0f);
+            for (int i = 0; i < 32; ++i) g.drawText(juce::String(i % 16 + 1), x0 + i * sw, lvlR.getBottom() - 15, sw, 14, juce::Justification::centred);
+        }
+        // routing grid: 14 output blocks (rows) by 14 input blocks (columns). A row takes exactly one source.
+        const int lw = kLabW, hh = kHeadH, cw = cellW(), rh = kRowH;
+        for (int c = 0; c < 14; ++c) {
+            juce::String n(wm::pulse16::kInputBlockNames[c]); int sp = n.indexOfChar(' ');
+            g.setColour(c < 6 ? col::title : col::dim); g.setFont(10.0f);
+            g.drawFittedText(n.substring(0, sp) + "\n" + n.substring(sp + 1), routeR.getX() + lw + c * cw, routeR.getY() + 26, cw, hh - 4, juce::Justification::centred, 2);
+        }
+        for (int r = 0; r < 14; ++r) {
+            int y = routeR.getY() + 26 + hh + r * rh;
+            g.setColour(r < 6 ? col::text : col::dim); g.setFont(11.5f); g.drawText(wm::pulse16::kOutputBlockNames[r], routeR.getX() + 12, y, lw - 12, rh, juce::Justification::centredLeft);
+            for (int c = 0; c < 14; ++c) {
+                auto cell = juce::Rectangle<int>(routeR.getX() + lw + c * cw, y, cw, rh).reduced(2);
                 bool on = session.haveState() && session.state().routeCol[r] == c;
-                g.setColour(on ? col::teal : juce::Colour(0xff34343c)); g.fillRoundedRectangle(cell.toFloat(), 4);
+                g.setColour(on ? col::teal : juce::Colour(0xff34343c)); g.fillRoundedRectangle(cell.toFloat(), 3);
             }
         }
     }
@@ -134,8 +144,8 @@ public:
         conn = r.removeFromTop(64); r.removeFromTop(8);
         auto row2 = r.removeFromTop(96); r.removeFromTop(8);
         clockR = row2.removeFromLeft(row2.getWidth() / 2 - 4); row2.removeFromLeft(8); hpR = row2;
-        lvlR = r.removeFromTop(164); r.removeFromTop(8);
-        routeR = r.removeFromTop(24 + 22 + 6 * 24 + 12); r.removeFromTop(8);
+        lvlR = r.removeFromTop(176); r.removeFromTop(8);
+        routeR = r.removeFromTop(26 + kHeadH + 14 * kRowH + 12); r.removeFromTop(8);
         auto row3 = r.removeFromTop(104);
         presetR = row3.removeFromLeft(row3.getWidth() * 3 / 5); row3.removeFromLeft(8); unitR = row3;
 
@@ -156,7 +166,7 @@ public:
         auto h2 = h.removeFromTop(30); hpSrcLab.setBounds(h2.removeFromLeft(50)); hpSrc.setBounds(h2.removeFromLeft(120).reduced(0, 2)); h2.removeFromLeft(10);
         hpChLab.setBounds(h2.removeFromLeft(60)); hpCh.setBounds(h2.removeFromLeft(80).reduced(0, 2)); h2.removeFromLeft(8); hpMono.setBounds(h2.removeFromLeft(80));
 
-        auto l = lvlR.reduced(8, 0).withTrimmedTop(24);
+        auto l = lvlR.reduced(8, 0).withTrimmedTop(26);
         int sw = l.getWidth() / 32;
         l.removeFromBottom(14);
         for (int i = 0; i < 16; ++i) inGain[size_t(i)].setBounds(l.getX() + i * sw, l.getY(), sw, l.getHeight());
@@ -173,13 +183,15 @@ public:
     }
     void mouseUp(const juce::MouseEvent& e) override {
         if (!session.haveState()) return;
-        const int lw = 120, hh = 22, cw = juce::jmax(46, (routeR.getWidth() - lw - 16) / 8), rh = 24;
-        auto p = e.getPosition(); int c = (p.x - routeR.getX() - lw) / cw, r = (p.y - routeR.getY() - 24 - hh) / rh;
-        if (p.x < routeR.getX() + lw || p.y < routeR.getY() + 24 + hh || c < 0 || c > 7 || r < 0 || r > 5) return;
+        const int lw = kLabW, hh = kHeadH, cw = cellW(), rh = kRowH;
+        auto p = e.getPosition(); int c = (p.x - routeR.getX() - lw) / cw, r = (p.y - routeR.getY() - 26 - hh) / rh;
+        if (p.x < routeR.getX() + lw || p.y < routeR.getY() + 26 + hh || c < 0 || c > 13 || r < 0 || r > 13) return;
         session.setRoute(r, c); repaint(routeR);
     }
 
 private:
+    static constexpr int kLabW = 130, kHeadH = 32, kRowH = 20;
+    int cellW() const { return juce::jmax(40, (routeR.getWidth() - kLabW - 16) / 14); }
     static constexpr const char* rateNames[9] = {"32 kHz", "44.1 kHz", "48 kHz", "64 kHz", "88.2 kHz", "96 kHz", "128 kHz", "176.4 kHz", "192 kHz"};
 
     void refreshPorts() {
