@@ -113,7 +113,7 @@ public:
     void feedSysEx(const wm::pulse16::Bytes& m) {
         session.onSysEx(m);
         const bool isMeter = m.size() == 46 && m[9] == 0x04;
-        if (session.connected() && session.haveState() && !controlsOn) { statusLab.setText("Connected", juce::dontSendNotification); setControlsEnabled(true); }
+        if (session.connected() && session.haveState() && !controlsOn) { statusLab.setText(connectedText(), juce::dontSendNotification); setControlsEnabled(true); }
         if (isMeter) { if (metersTgl.getToggleState()) repaint(lvlR); return; }    // 4.5 polls a second: do not rebuild every control
         refreshFromState();
     }
@@ -237,8 +237,8 @@ private:
             case wm::pulse16::Status::Lost:
                 if (controlsOn) { setControlsEnabled(false); statusLab.setText("Connection lost. Press Connect to try again.", juce::dontSendNotification); } break;
             case wm::pulse16::Status::Connected:
-                if (!controlsOn && session.haveState()) { setControlsEnabled(true); statusLab.setText("Connected", juce::dontSendNotification); }
-                else if (controlsOn && statusLab.getText().startsWith("Connection lost")) statusLab.setText("Connected", juce::dontSendNotification);
+                if (!controlsOn && session.haveState()) { setControlsEnabled(true); statusLab.setText(connectedText(), juce::dontSendNotification); }
+                else if (controlsOn && statusLab.getText().startsWith("Connection lost")) statusLab.setText(connectedText(), juce::dontSendNotification);
                 break;
             default: break;
         }
@@ -272,6 +272,7 @@ private:
             .withMessage("This overwrites preset " + juce::String(n) + " stored in the Pulse with its current settings.").withButton("Save").withButton("Cancel").withAssociatedComponent(this),
             [this, n](int result) { if (result == 1) session.savePresetSlot(n); });
     }
+    juce::String connectedText() const { return "Connected · unit ID " + juce::String(wm::pulse16::idText(session.unitId())); }
     void backupToFile() {
         chooser = std::make_unique<juce::FileChooser>("Save Pulse 16 backup", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("pulse16-backup.txt"), "*.txt");
         chooser->launchAsync(juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles | juce::FileBrowserComponent::warnAboutOverwriting, [this](const juce::FileChooser& fc) {

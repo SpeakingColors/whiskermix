@@ -43,7 +43,7 @@ int main() {
     s.setInputGain(1, 5); assert(r.sent.size() == 1);                       // nothing is sent before the unit answered
     s.onSysEx(unhex("f000112201020304050300f7"));
     assert(s.connected() && r.sent.size() == 2 && hex(r.sent[1]) == "f000112201020304050201f7");
-    assert(s.unitId()[0] == 1 && s.unitId()[4] == 5);
+    assert(s.unitId()[0] == 1 && s.unitId()[4] == 5 && idText(s.unitId()) == "01 02 03 04 05");
     s.onSysEx(unhex("f00011220909090909010101f7"));                         // another unit's frame is ignored
     assert(!s.state().clockKnown);
     s.onSysEx(unhex("f0001122010203040550001414000014140e0e0e0e0000080800001c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1cf7"));

@@ -46,3 +46,6 @@ Headphone volume is not part of a preset.
 - The unit's screen can show a rate it is not running, and RemoteFish sends nothing when you re-pick the value it shows. Send the rate explicitly.
 - Clock: only one device may be master. With nothing on the BNC input and the clock set to BNC or ADAT, the Pulse shows "no lock".
 - Not captured: delay compensation (`01 10 00/01` PROBABLE), MADI/Dante specifics, meter scale.
+
+## Serial number (UNKNOWN)
+RemoteFish shows the unit's serial (SN nnn-nnn-nnn). None of the captured frames from the unit contains it in any encoding tried (7-bit groups, nibbles, ASCII, BCD, 32-bit, arithmetic on the 5 id bytes, scans of the `03 00`, `12 00` and `13 00` blocks). WhiskerMix shows the unit id it reads from the probe answer instead. To find the serial a capture of RemoteFish starting and connecting is needed.

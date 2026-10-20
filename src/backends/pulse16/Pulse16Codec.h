@@ -20,6 +20,14 @@ using Bytes = std::vector<uint8_t>;
 // Session learns and uses for every later frame (do not hardcode it, it may differ per unit).
 using Id = std::array<uint8_t, 5>;
 inline constexpr Id kBroadcastId{0, 0, 0, 0, 0};
+// "0B 3C 45 4F 0B" style text for the UI. This is the unit id from the probe answer, NOT the serial number printed on the unit:
+// RemoteFish shows a serial (SN nnn-nnn-nnn) but no captured frame carries it in any encoding tried (7-bit, nibbles, ASCII, BCD,
+// plain arithmetic on the id). Where RemoteFish gets it is UNKNOWN: a capture of RemoteFish starting up is needed.
+inline std::string idText(const Id& id) {
+    static const char* h = "0123456789ABCDEF"; std::string t;
+    for (size_t i = 0; i < id.size(); ++i) { if (i) t += ' '; t += h[id[i] >> 4]; t += h[id[i] & 15]; }
+    return t;
+}
 
 // Frame builders for one unit id. All values were seen on the wire unless marked PROBABLE or UNVERIFIED.
 struct Frames {
