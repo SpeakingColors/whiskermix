@@ -5,7 +5,7 @@ WhiskerMix is a mixer and studio hub by Studio 87 for an RME Digiface USB with a
 ## How the mixer works
 The mixer is a blend of two things:
 - **Hardware control**: the faders, pan, phase, stereo link, M/S, main volume, dim and speaker B are written to the Digiface's own mixer over USB (the same messages the vendor mixer sends). Audio stays in the interface, no added latency.
-- **Audio on the computer**: everything the hardware does not take over USB (mute, solo, width, EQ, dynamics, reverb, echo, chorus, limiter) runs in WhiskerMix through PipeWire or JACK on Linux, and through the system audio or ASIO on Windows and macOS. Your DAW sees the same device names.
+- **Audio on the computer**: everything the hardware does not take over USB (mute, solo, width, EQ, compressor, reverb, delay, pitch shift) runs in WhiskerMix through PipeWire or JACK on Linux, and through the system audio or ASIO on Windows and macOS. Your DAW sees the same device names.
 If no Digiface is found the app runs in dry run: every control works, the same messages are prepared, nothing is sent. The toolbar shows which mode you are in.
 
 ## Install
@@ -39,7 +39,7 @@ Controls a Ferrofish Pulse 16 over DIN MIDI (SysEx) through any class compliant 
 Brightness and key click are not reported by the unit, so the page only shows what you set. Signal lights are experimental.
 
 ### FX
-Per channel: EQ (low cut, low, mid, high) and dynamics (compressor/expander with gain reduction meter). FX bus: reverb, echo, chorus with sends from every strip. Main out: limiter and room EQ per speaker set. All of it runs on the computer; the Digiface has no DSP.
+Per channel: EQ (low cut, low, mid, high) and dynamics (compressor/expander with gain reduction meter). FX bus: reverb, delay and pitch shift with sends from every strip. Chorus and a main out limiter are planned (see the roadmap). All of it runs on the computer; the Digiface has no DSP.
 
 ### Settings
 Channel layout (names, icons, colours, stereo, hide), mixer preferences, devices, remote control (Mackie, OSC), UI size reset to 100%, tooltips on or off, autosave. MIDI filters are on by default.

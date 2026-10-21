@@ -11,14 +11,19 @@ Standalone studio hub: TotalMix-style mixer for the RME Digiface USB, MIDI hub, 
 - [ ] Digiface: still undecoded: meters (interrupt IN 0x83 and bulk IN 0x84), submix selection, the second register set, mono output faders, startup writes
 - [ ] App window built from the approved mockups (same layout, look, wood cheeks); today's JUCE pages are functional stand-ins
 - [ ] JUCE app on cat-ui: mixer page first (inputs, playbacks, outputs, mute red, solo yellow, per-strip settings panel that opens and closes without folding the channel)
-- [ ] Channel layout like TotalMix: name, color, hide per tab
-- [ ] Own FX (the Digiface has no DSP): reverb, echo, chorus, compressor, limiter, EQ, on inputs too
-- [ ] Routing and aggregation page, MIDI hub, MIDI-over-MADI or Dante
+- [x] Channel layout: name, icon, colour, stereo link and hide per strip (Settings page, saved in the workspace). Per-tab layouts not done
+- [x] Own FX (the Digiface has no DSP), in code with unit tests: channel EQ and compressor, plate, hall, shimmer and velvet reverb, shimmer delay, pitch shifter; FX Off is a true bypass
+- [ ] Own FX still missing: chorus, limiter (the manual and README listed them before they existed)
+- [x] Routing matrix page and MIDI hub page (live log, filters, named snapshots, anonymised debug report)
+- [ ] Aggregation, MIDI-over-MADI or Dante
 - [x] Pulse 16 over DIN MIDI: SysEx codec, session and page (clock, sample rate, headphones, levels, routing, presets 1-6, brightness, key click). Built from RemoteFish captures, compiled and rendered headless; not yet tested on real hardware
 - [x] Pulse 16 backend: unit id learned from the probe, connection watchdog and meter polling, front panel echoes, backup and restore file, apply-state
 - [ ] Pulse 16: real commands for MIDI routing, MADI 96k frame, MADI short frame, BNC termination, delay compensation; meter scale and channel order (needs a capture with a steady tone); decode the undecoded state blocks (see docs/PULSE16-PROTOCOL.md)
 - [ ] Pulse 16: test on real hardware with the UM-ONE on Bazzite (Find Pulse, connect, every control)
-- [ ] Snapshots and workspaces, talkback and listenback, main out recall and dim, MIDI/Mackie and OSC ports
+- [x] Named snapshots (full state copy) and workspace files (.wmix) with autosave
+- [x] Mixer: stereo split and join on hardware pairs like the TotalMix Stereo button
+- [x] Release: one zip per system with installers, uninstallers and PDF manual (test builds, not tested on real machines)
+- [ ] Talkback and listenback, main out recall, MIDI/Mackie and OSC ports
 
 ## Every cat plugin
 - Draw through `catui::RenderGate` so meters and animations stop when the window is not in front (audio, automation and MIDI keep running)
