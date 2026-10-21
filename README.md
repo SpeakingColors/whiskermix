@@ -4,6 +4,10 @@
 
 A TotalMix-style mixer and studio hub for Linux, by Studio 87. Made for one setup: an **RME Digiface USB** with a **Ferrofish Pulse 16 DX** behind it on ADAT. Mixer, routing, MIDI hub, Pulse 16 control page, built-in FX. Free and open source. Windows and macOS builds exist for the audio side.
 
+<p align="center"><img src="docs/screenshot.png" alt="WhiskerMix editor" width="900"><br><sub>Screenshot of the interactive mockup in docs/mockups.</sub></p>
+
+**Manual:** [PDF, opens in the browser](https://github.com/SpeakingColors/whiskermix/blob/main/docs/whiskermix-manual.pdf)
+
 ## What to expect
 - **Tested only with the Digiface USB and the Pulse 16 DX.** No promise it works with anything else. Other RME interfaces may work for the audio part and may or may not for the hardware mixer; you are free to try and to report what you see.
 - **The mixer is a blend.** Faders, pan, phase, stereo link, M/S, main volume, dim and speaker B are written to the Digiface's own hardware mixer over USB (the messages the vendor mixer sends, learned from captures). Everything the hardware does not do over USB (mute, solo, width, EQ, compressor, reverb, delay, pitch shift) runs on the computer through the audio system: PipeWire or JACK on Linux, the system audio or ASIO on Windows and macOS. If no Digiface is found, the hardware part goes into dry run and the software part keeps working.
