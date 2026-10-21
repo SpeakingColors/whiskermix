@@ -159,7 +159,7 @@ private:
 // Settings of the selected channel.
 class StripPanel : public juce::Component {
 public:
-    std::function<void()> onLook, onLayout, onOpenFx;   // name, colour or emoji changed / link changed / EQ or dynamics clicked
+    std::function<void()> onLook, onLayout, onOpenFx, onClose;   // name, colour or emoji changed / link changed / EQ or dynamics clicked
     StripPanel(wm::mixer::Mixer& m) : mx(m) {
         auto knob = [this](juce::Slider& s, double lo, double hi, double step, double def, juce::Colour c, const char* tip) {
             s.setSliderStyle(juce::Slider::RotaryVerticalDrag); s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
@@ -177,9 +177,10 @@ public:
         tog(phL, "\xC3\x98L", "Invert phase of the left channel", col::orange, [this](bool v) { cur().phaseL = v; if (onLook) onLook(); });
         tog(phR, "\xC3\x98R", "Invert phase of the right channel (linked pair)", col::orange, [this](bool v) { cur().phaseR = v; });
         tog(link, "Link with next", "Make this channel and the next one a stereo pair", col::mint, [this](bool v) { cur().stereoLinked = v; if (onLayout) onLayout(); });
-        tog(eq, "EQ", "Open the EQ page for this channel", col::teal, [this](bool) { cur().fx.eqOn = true; sync(); if (onOpenFx) onOpenFx(); });
-        tog(dyn, "Dynamics", "Open the compressor page for this channel", col::violet, [this](bool) { cur().fx.compOn = true; sync(); if (onOpenFx) onOpenFx(); });
-        eq.setClickingTogglesState(false); dyn.setClickingTogglesState(false);
+        tog(eq, "EQ", "EQ on/off for this channel (Off = bypassed, the sound passes untouched); also opens the EQ page", col::teal, [this](bool v) { cur().fx.eqOn = v; if (onOpenFx) onOpenFx(); });
+        tog(dyn, "Dynamics", "Dynamics on/off for this channel (Off = bypassed, the sound passes untouched); also opens the compressor page", col::violet, [this](bool v) { cur().fx.compOn = v; if (onOpenFx) onOpenFx(); });
+        closeBtn.setButtonText(juce::CharPointer_UTF8("\xC3\x97")); closeBtn.setTooltip("Close this channel's settings (the channel stays as it is)");
+        closeBtn.onClick = [this] { if (onClose) onClose(); }; addAndMakeVisible(closeBtn);
         sw.onPick = [this](int i) { cur().colour = i; if (onLook) onLook(); };
         sw.setTooltip("Strip colour (also used in the MIDI hub)"); addAndMakeVisible(sw);
         for (auto& e : emojiList()) emoji.addItem(e.empty() ? juce::String("(no icon)") : juce::String(juce::CharPointer_UTF8(e.c_str())), emoji.getNumItems() + 1);
@@ -211,7 +212,7 @@ public:
         g.drawText("WIDTH", knobL, juce::Justification::centredBottom); g.drawText("FX SEND", knobR, juce::Justification::centredBottom);
     }
     void resized() override {
-        auto r = getLocalBounds().reduced(10); r.removeFromTop(38);
+        auto r = getLocalBounds().reduced(10); closeBtn.setBounds(getWidth() - 34, 6, 24, 22); r.removeFromTop(38);
         auto k = r.removeFromTop(84);
         knobL = k.removeFromLeft(k.getWidth() / 2).withTrimmedBottom(0); knobR = k;
         width.setBounds(knobL.reduced(4).withTrimmedBottom(14)); send.setBounds(knobR.reduced(4).withTrimmedBottom(14));
@@ -224,7 +225,7 @@ public:
 private:
     wm::mixer::Channel& cur() { return mx.state().channels[size_t(ch)]; }
     wm::mixer::Mixer& mx; int ch = 0; juce::Rectangle<int> knobL, knobR;
-    juce::Slider width, send; juce::TextButton ms, phL, phR, link, eq, dyn; Swatches sw; juce::ComboBox emoji;
+    juce::Slider width, send; juce::TextButton ms, phL, phR, link, eq, dyn, closeBtn; Swatches sw; juce::ComboBox emoji;
 };
 
 class MixerView : public juce::Component, private juce::Timer {
@@ -242,7 +243,9 @@ public:
         panel.onLook = [this] { for (auto& s : strips) s->refresh(); panel.repaint(); };
         panel.onLayout = [this] { };
         panel.onOpenFx = [this] { if (onOpenFx) onOpenFx(); };
-        select(0);
+        panel.onClose = [this] { setPanelOpen(false); };
+        panel.setVisible(false);          // every channel starts closed, like TotalMix
+        pick(0);
         refreshAll();
         startTimerHz(30);
     }
@@ -253,7 +256,7 @@ public:
             int i = int(strips.size());
             if (i < rt.inputs() && rt.outputs() > 0 && !rt.routed(i, 0)) rt.set(i, 0, 0.0f);   // new channels go to bus 1 by default
             strips.push_back(std::make_unique<Strip>(mx, rt, i));
-            strips.back()->onSelect = [this](int c) { select(c); };
+            strips.back()->onSelect = [this](int c) { select(c); setPanelOpen(true); };   // clicking a strip opens its settings
             addAndMakeVisible(*strips.back());
         }
         if (selectedChannel >= int(strips.size())) selectedChannel = int(strips.size()) - 1;
@@ -262,7 +265,10 @@ public:
     int selectedChannel = 0;
     std::function<void(int)> onSelect;
     std::function<void()> onOpenFx;
-    void select(int c) {
+    bool panelOpen() const { return panelOpen_; }
+    void setPanelOpen(bool o) { panelOpen_ = o; panel.setVisible(o); resized(); repaint(); }
+    void select(int c) { pick(c); }
+    void pick(int c) {
         selectedChannel = c;
         for (size_t i = 0; i < strips.size(); ++i) { strips[i]->selected = int(i) == c; strips[i]->repaint(); }
         panel.setChannel(c);
@@ -291,7 +297,7 @@ public:
     void resized() override {
         auto r = getLocalBounds().reduced(6);
         auto side = r.removeFromRight(230); r.removeFromRight(6);
-        panel.setBounds(side.removeFromTop(268)); side.removeFromTop(6);
+        if (panelOpen_) { panel.setBounds(side.removeFromTop(268)); side.removeFromTop(6); }
         mainCard = side;
         auto m = side.reduced(8); m.removeFromTop(22);
         dim.setBounds(m.removeFromTop(28).removeFromLeft(80)); m.removeFromTop(4);
@@ -312,6 +318,7 @@ private:
         for (size_t i = 0; i < strips.size(); ++i) { strips[i]->setMeter(eng.inputPeakDb(int(i))); strips[i]->setGr(eng.gainReductionDb(int(i))); }
         mainL.setDb(eng.outputPeakDb(0)); mainR.setDb(eng.outputPeakDb(1));
     }
+    bool panelOpen_ = false;
     wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; wm::engine::AudioEngine& eng;
     std::vector<std::unique_ptr<Strip>> strips; StripPanel panel; juce::Slider main; juce::TextButton dim; Meter mainL, mainR;
     juce::Rectangle<int> mainCard;

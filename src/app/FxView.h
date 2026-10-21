@@ -46,7 +46,6 @@ public:
     void mouseDrag(const juce::MouseEvent& e) override {
         auto* p = params ? params() : nullptr; if (!p || drag < 0) return;
         float f = juce::jlimit(20.f, 20000.f, fOf(e.position.x)), gdb = juce::jlimit(-18.f, 18.f, dbOf(e.position.y));
-        p->eqOn = true;
         if (drag == 0) { p->lowFreq = f; p->lowGain = gdb; }
         if (drag == 1) { p->midFreq = f; p->midGain = gdb; }
         if (drag == 2) { p->highFreq = f; p->highGain = gdb; }
@@ -54,7 +53,7 @@ public:
         repaint(); if (onChange) onChange();
     }
     void mouseDoubleClick(const juce::MouseEvent&) override {   // toggle low cut (default 80 Hz)
-        if (auto* p = params ? params() : nullptr) { p->lowCutHz = p->lowCutHz > 0 ? 0.f : 80.f; p->eqOn = true; repaint(); if (onChange) onChange(); }
+        if (auto* p = params ? params() : nullptr) { p->lowCutHz = p->lowCutHz > 0 ? 0.f : 80.f; repaint(); if (onChange) onChange(); }
     }
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& w) override {   // wheel = mid Q
         if (auto* p = params ? params() : nullptr) { p->midQ = juce::jlimit(0.2f, 10.f, p->midQ * (1.f + w.deltaY * 0.5f)); repaint(); if (onChange) onChange(); }
@@ -115,7 +114,6 @@ public:
     }
     void mouseDrag(const juce::MouseEvent& e) override {
         auto* p = params ? params() : nullptr; if (!p || drag < 0) return;
-        p->compOn = true;
         if (drag == 0) p->threshDb = juce::jlimit(-60.f, -3.f, inOf(e.position.x));
         if (drag == 1) {   // handle sits at in = -6 dB: its height sets the ratio
             float out = juce::jlimit(p->threshDb + 0.5f, -6.f, dbOfY(e.position.y));

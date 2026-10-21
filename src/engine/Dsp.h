@@ -94,7 +94,11 @@ inline float compOutDb(const FxParams& p, float inDb) {
 
 class ChannelFx {
 public:
+    // Off = bypass: a section that is off is not run at all (no filtering, no gain, no state kept). It restarts clean when
+    // switched on again. When both sections are off the engine does not call process() and the signal passes untouched.
     void process(const FxParams& p, float sr, const float* in, float* out, int n) {
+        if (!p.eqOn) { hp_.z1 = hp_.z2 = lo_.z1 = lo_.z2 = mid_.z1 = mid_.z2 = hi_.z1 = hi_.z2 = 0; }
+        if (!p.compOn) { env_ = 0; grDb_ = 0; }
         if (sr != sr_ || !(p == last_)) { rebuild(p, sr); }
         float atk = std::exp(-1.0f / (0.001f * std::max(p.attackMs, 0.1f) * sr)), rel = std::exp(-1.0f / (0.001f * std::max(p.releaseMs, 1.0f) * sr));
         float mk = std::pow(10.0f, p.makeupDb / 20.0f);

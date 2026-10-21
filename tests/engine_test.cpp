@@ -68,6 +68,33 @@ int main() {
         CHECK(near(bq.magDb(48000, 1000), 12.0f, 0.1f));
         CHECK(near(engine::compOutDb(fx, -8), -20 + 12 / 4.0f, 0.01f));
     }
+    // Off = bypass: with both sections off the output equals the same channel with no FX at all; switching on changes it, off restores it
+    {
+        auto render = [](bool eq, bool comp) {
+            mixer::Mixer mm(1, 1); mixer::RoutingMatrix rr(1, 1); rr.set(0, 0, 0.0f); mm.state().channels[0].pan = -1.0f;
+            auto& f = mm.state().channels[0].fx; f.eqOn = eq; f.compOn = comp; f.midGain = 12; f.lowCutHz = 400; f.threshDb = -30; f.ratio = 8;
+            engine::AudioEngine ee(mm, rr); ee.prepare(2400);
+            std::vector<float> sn(2400), o0(2400), o1(2400);
+            for (size_t i = 0; i < sn.size(); ++i) sn[i] = 0.3f * std::sin(2 * 3.14159265f * 1000.0f * float(i) / 48000.0f);
+            const float* ip[1] = {sn.data()}; float* op[2] = {o0.data(), o1.data()};
+            ee.sync(); for (int k = 0; k < 3; ++k) ee.process(ip, op, 2400);
+            return std::make_pair(o0[2399], ee.gainReductionDb(0));
+        };
+        auto none = render(false, false), eqOnly = render(true, false), compOnly = render(false, true);
+        CHECK(near(none.first, 0.3f * std::sin(2 * 3.14159265f * 1000.0f * 2399.0f / 48000.0f), 1e-5f));   // untouched
+        CHECK(none.second == 0.0f);
+        CHECK(!near(eqOnly.first, none.first, 0.01f));
+        CHECK(compOnly.second < -3.0f);
+        // same engine: on, then off again: the signal is exactly the plain one and the reduction reads 0
+        mixer::Mixer mm(1, 1); mixer::RoutingMatrix rr(1, 1); rr.set(0, 0, 0.0f); mm.state().channels[0].pan = -1.0f;
+        auto& f = mm.state().channels[0].fx; f.eqOn = true; f.compOn = true; f.midGain = 12; f.threshDb = -30; f.ratio = 8;
+        engine::AudioEngine ee(mm, rr); ee.prepare(2400);
+        std::vector<float> sn(2400, 0.3f), o0(2400), o1(2400);
+        const float* ip[1] = {sn.data()}; float* op[2] = {o0.data(), o1.data()};
+        ee.sync(); for (int k = 0; k < 3; ++k) ee.process(ip, op, 2400);
+        f.eqOn = false; f.compOn = false; ee.sync(); ee.process(ip, op, 2400);
+        CHECK(near(o0[2399], 0.3f, 1e-5f)); CHECK(ee.gainReductionDb(0) == 0.0f);
+    }
     // Live add: a channel appears while the engine is running, the old one keeps working
     {
         mixer::Mixer m3(1, 1); mixer::RoutingMatrix r3(1, 1); r3.set(0, 0, 0.0f);

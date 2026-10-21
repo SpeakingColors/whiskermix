@@ -82,7 +82,7 @@ public:
                 fx_[c].process(ch.fx, sr_, in[c], buf_[c].data(), n);
                 srcp_[c] = buf_[c].data();
                 gr_[c].store(fx_[c].gainReductionDb(), std::memory_order_relaxed);
-            } else gr_[c].store(0.0f, std::memory_order_relaxed);
+            } else { fx_[c].process(ch.fx, sr_, in[c], buf_[c].data(), 0); gr_[c].store(0.0f, std::memory_order_relaxed); }   // both off: bypass, state cleared
         }
         // Pass 2: routing. A channel with "stereoLinked" is the left of a pair with the next channel (the right one
         // follows the left one's fader, mute, solo, pan (balance), width and M/S settings).

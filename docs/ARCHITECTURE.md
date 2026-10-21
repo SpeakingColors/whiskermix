@@ -24,3 +24,6 @@ Run the mixer in software: route PipeWire/JACK ports through our own mixer and u
 - No allocation, locks, file I/O or logging in `AudioEngine::process`. All buffers are sized in `prepare()`.
 - Denormals are flushed to zero per block. Gain changes are smoothed (about 5 ms).
 - UI edits reach the audio thread through a lock-free triple buffer (`AudioEngine::sync`); meters come back through atomics. Tested with a two-thread race.
+
+## FX Off = bypass (rule for every FX, mockup and app)
+An FX that is Off is not in the signal path: it is not run, adds no latency or CPU, keeps no state (it restarts clean when switched on) and its meters are idle. The channel sound passes through untouched. Channel settings panels start closed. Tests: `tests/engine_test.cpp` (bypass block).
