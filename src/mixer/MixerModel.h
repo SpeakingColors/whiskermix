@@ -6,6 +6,7 @@
 #include "../backends/digiface/DigifaceCodec.h"
 #include "../engine/Dsp.h"
 #include "../engine/Reverb.h"
+#include "../engine/Chain.h"
 
 namespace wm::mixer {
 
@@ -28,6 +29,7 @@ struct Channel {
     int hwFirst = -1;           // Digiface hardware channel of this strip (0-based; stereo strips use hwFirst and hwFirst+1); -1 = not on the hardware
     bool playback = false;      // software playback strip (true) or hardware input (false)
     wm::engine::FxParams fx;
+    wm::engine::FxChainParams chain;   // Reverb, Echo, Chorus, Phaser, Flanger, M/S, MB Comp, Limiter, Purr Trio, Opto (each on/off + 4 knobs)
 };
 
 struct Bus {

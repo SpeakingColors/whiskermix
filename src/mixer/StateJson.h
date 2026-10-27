@@ -34,6 +34,10 @@ inline std::string toJson(const State& st) {
 #define X(k) std::snprintf(t, sizeof t, ",\"fx_" #k "\":%.4g", double(c.fx.k)); fx += t;
             WM_FX_FIELDS(X)
 #undef X
+            for (int k = 0; k < wm::engine::kFxKinds; ++k) {   // chain FX: "cx<kind>on" and "cx<kind>p0..3"
+                std::snprintf(t, sizeof t, ",\"cx%don\":%d", k, c.chain.s[k].on); fx += t;
+                for (int q = 0; q < 4; ++q) { std::snprintf(t, sizeof t, ",\"cx%dp%d\":%.4g", k, q, double(c.chain.s[k].p[q])); fx += t; }
+            }
         }
         std::snprintf(b, sizeof b, "%s{\"name\":\"%s\",\"gain\":%.3f,\"pan\":%.3f,\"mute\":%d,\"solo\":%d,\"phaseL\":%d,\"phaseR\":%d,\"link\":%d}",
                       i ? "," : "", jsonEscape(c.name).c_str(), c.gainDb, c.pan, c.mute, c.solo, c.phaseL, c.phaseR, c.stereoLinked);
@@ -105,6 +109,11 @@ inline bool fromJson(const std::string& s, State& st) {
 #define X(k) if (detail::field(s, p, e, "fx_" #k, v)) c.fx.k = std::strtof(v.c_str(), nullptr);
         WM_FX_FIELDS(X)
 #undef X
+        for (int k = 0; k < wm::engine::kFxKinds; ++k) {
+            char key[24];
+            std::snprintf(key, sizeof key, "cx%don", k); if (detail::field(s, p, e, key, v)) c.chain.s[k].on = v == "1";
+            for (int q = 0; q < 4; ++q) { std::snprintf(key, sizeof key, "cx%dp%d", k, q); if (detail::field(s, p, e, key, v)) c.chain.s[k].p[q] = std::strtof(v.c_str(), nullptr); }
+        }
         n.channels.push_back(c); p = e;
     }
     for (size_t p = s.find('{', bs + 9); p != std::string::npos; p = s.find('{', p + 1)) {

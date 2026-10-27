@@ -13,7 +13,8 @@ Standalone studio hub: TotalMix-style mixer for the RME Digiface USB, MIDI hub, 
 - [ ] JUCE app on cat-ui: mixer page first (inputs, playbacks, outputs, mute red, solo yellow, per-strip settings panel that opens and closes without folding the channel)
 - [x] Channel layout: name, icon, colour, stereo link and hide per strip (Settings page, saved in the workspace). Per-tab layouts not done
 - [x] Own FX (the Digiface has no DSP), in code with unit tests: channel EQ and compressor, plate, hall, shimmer and velvet reverb, shimmer delay, pitch shifter; FX Off is a true bypass
-- [ ] Own FX still missing: chorus, limiter (the manual and README listed them before they existed)
+- [x] Per-channel FX chain in the engine (Reverb, Echo, Chorus, Phaser, Flanger, M/S, MB Comp, Limiter, Purr Trio, Opto) with Off = bypass, tested; FX panel in the real window (first version, needs a look on screen)
+- [ ] Tune the FX by ear against the mockup (reverb size, opto release, MB comp crossovers), oversampling above 2x for Purr Trio
 - [x] Routing matrix page and MIDI hub page (live log, filters, named snapshots, anonymised debug report)
 - [ ] Aggregation, MIDI-over-MADI or Dante
 - [x] Pulse 16 over DIN MIDI: SysEx codec, session and page (clock, sample rate, headphones, levels, routing, presets 1-6, brightness, key click). Built from RemoteFish captures, compiled and rendered headless; not yet tested on real hardware

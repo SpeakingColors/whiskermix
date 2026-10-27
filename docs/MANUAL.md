@@ -39,7 +39,7 @@ Controls a Ferrofish Pulse 16 over DIN MIDI (SysEx) through any class compliant 
 Brightness and key click are not reported by the unit, so the page only shows what you set. Signal lights are experimental.
 
 ### FX
-Per channel: EQ (low cut, low, mid, high) and dynamics (compressor/expander with gain reduction meter). FX bus: reverb, delay and pitch shift with sends from every strip. Chorus and a main out limiter are planned (see the roadmap). All of it runs on the computer; the Digiface has no DSP.
+Per channel, click the FX button on the strip: the FX panel opens beside the channel. Twelve FX: EQ (low cut, low, mid, high), Dynamics (compressor with gain reduction meter), Reverb, Echo, Chorus, Phaser, Flanger, M/S (on a linked pair), MB Comp (3 bands), Limiter, Purr Trio (Drive, Transistor, Fuzz) and Opto (LA-2A style). Each has its own On/Off, four knobs and IN/OUT meters; lit buttons in the chain row are on. Off means bypassed: the FX is not run, the sound passes untouched and its meters go idle. Channel settings (wrench) start closed. FX bus: reverb, delay and pitch shift with sends from every strip. All of it runs on the computer; the Digiface has no DSP.
 
 ### Settings
 Channel layout (names, icons, colours, stereo, hide), mixer preferences, devices, remote control (Mackie, OSC), UI size reset to 100%, tooltips on or off, autosave. MIDI filters are on by default.

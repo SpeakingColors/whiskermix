@@ -97,13 +97,18 @@ public:
         toggle(mute, "M", "Mute", col::pink, &wm::mixer::Channel::mute);
         toggle(solo, "S", "Solo", col::yellow, &wm::mixer::Channel::solo);
         toggle(phase, "\xC3\x98", "Phase invert (left)", col::orange, &wm::mixer::Channel::phaseL);
+        setBtn.setButtonText(juce::CharPointer_UTF8("\xF0\x9F\x94\xA7")); setBtn.setTooltip("Channel settings (width, M/S, phase, link, send, colour, icon)");
+        fxBtn.setButtonText("FX"); fxBtn.setTooltip("Open this channel's FX panel beside the strip");
+        for (auto* b : {&setBtn, &fxBtn}) { b->setClickingTogglesState(false); b->setColour(juce::TextButton::buttonOnColourId, col::pink); addAndMakeVisible(*b); }
+        setBtn.onClick = [this] { if (onWrench) onWrench(c); }; fxBtn.onClick = [this] { if (onFx) onFx(c); };
         for (auto* x : std::initializer_list<juce::Component*>{&name, &fader, &pan, &meter}) addAndMakeVisible(x);
         applySettings();
     }
     void setMeter(float db) { meter.setDb(db); }
     void setGr(float db) { if (std::fabs(db - gr) > 0.05f) { gr = db; repaint(); } }
-    std::function<void(int)> onSelect;
+    std::function<void(int)> onSelect, onWrench, onFx;
     bool selected = false;
+    void setLit(bool fxOpen, bool setOpen) { fxBtn.setToggleState(fxOpen, juce::dontSendNotification); setBtn.setToggleState(setOpen, juce::dontSendNotification); }
     void mouseDown(const juce::MouseEvent&) override { if (onSelect) onSelect(c); }
     void applySettings() {
         bool d = wm::mixer::settings().doubleClickReset;
@@ -145,6 +150,7 @@ public:
         pan.setBounds(r.removeFromTop(44).withSizeKeepingCentre(40, 40));
         auto b = r.removeFromTop(26); int w = b.getWidth() / 3;
         mute.setBounds(b.removeFromLeft(w).reduced(1)); solo.setBounds(b.removeFromLeft(w).reduced(1)); phase.setBounds(b.reduced(1));
+        { auto rb = r.removeFromBottom(24); setBtn.setBounds(rb.removeFromLeft(rb.getWidth() / 2).reduced(1)); fxBtn.setBounds(rb.reduced(1)); }
         r.removeFromBottom(14);   // room for the GR readout
         scaleBox = r.removeFromLeft(20).withTrimmedBottom(18);
         meter.setBounds(r.removeFromRight(10).withTrimmedBottom(18).reduced(0, 4));
@@ -153,8 +159,10 @@ public:
 private:
     wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; int c, bus; float gr = 0;
     juce::Rectangle<int> emojiBox, scaleBox;
-    juce::Label name; juce::Slider fader, pan; juce::TextButton mute, solo, phase; Meter meter;
+    juce::Label name; juce::Slider fader, pan; juce::TextButton mute, solo, phase, setBtn, fxBtn; Meter meter;
 };
+
+#include "FxChainView.h"
 
 // Settings of the selected channel.
 class StripPanel : public juce::Component {
@@ -230,7 +238,7 @@ private:
 
 class MixerView : public juce::Component, private juce::Timer {
 public:
-    MixerView(wm::mixer::Mixer& m, wm::mixer::RoutingMatrix& r, wm::engine::AudioEngine& e) : mx(m), rt(r), eng(e), panel(m) {
+    MixerView(wm::mixer::Mixer& m, wm::mixer::RoutingMatrix& r, wm::engine::AudioEngine& e) : mx(m), rt(r), eng(e), panel(m), fxPanel(m, e) {
         rebuild();
         main.setSliderStyle(juce::Slider::LinearVertical); main.setRange(-60.0, 6.0, 0.1);
         main.setSkewFactorFromMidPoint(-12.0); main.setValue(0.0, juce::dontSendNotification);
@@ -244,6 +252,7 @@ public:
         panel.onLayout = [this] { };
         panel.onOpenFx = [this] { if (onOpenFx) onOpenFx(); };
         panel.onClose = [this] { setPanelOpen(false); };
+        addChildComponent(fxPanel); fxPanel.onClose = [this] { setFxOpen(false); };   // FX panel starts closed
         panel.setVisible(false);          // every channel starts closed, like TotalMix
         pick(0);
         refreshAll();
@@ -256,7 +265,9 @@ public:
             int i = int(strips.size());
             if (i < rt.inputs() && rt.outputs() > 0 && !rt.routed(i, 0)) rt.set(i, 0, 0.0f);   // new channels go to bus 1 by default
             strips.push_back(std::make_unique<Strip>(mx, rt, i));
-            strips.back()->onSelect = [this](int c) { select(c); setPanelOpen(true); };   // clicking a strip opens its settings
+            strips.back()->onSelect = [this](int c) { select(c); };
+            strips.back()->onWrench = [this](int c) { bool same = c == selectedChannel; select(c); setPanelOpen(!(same && panelOpen_)); };   // wrench: open or close this channel's settings
+            strips.back()->onFx = [this](int c) { bool same = c == selectedChannel; select(c); setFxOpen(!(same && fxOpen_)); };            // FX: open or close this channel's FX panel
             addAndMakeVisible(*strips.back());
         }
         if (selectedChannel >= int(strips.size())) selectedChannel = int(strips.size()) - 1;
@@ -265,13 +276,17 @@ public:
     int selectedChannel = 0;
     std::function<void(int)> onSelect;
     std::function<void()> onOpenFx;
+    bool fxOpen() const { return fxOpen_; }
+    void setFxOpen(bool o) { fxOpen_ = o; fxPanel.setVisible(o); if (o) fxPanel.setChannel(selectedChannel); updateLit(); resized(); repaint(); }
+    void updateLit() { for (size_t i = 0; i < strips.size(); ++i) strips[i]->setLit(fxOpen_ && int(i) == selectedChannel, panelOpen_ && int(i) == selectedChannel); }
     bool panelOpen() const { return panelOpen_; }
-    void setPanelOpen(bool o) { panelOpen_ = o; panel.setVisible(o); resized(); repaint(); }
+    void setPanelOpen(bool o) { panelOpen_ = o; panel.setVisible(o); updateLit(); resized(); repaint(); }
     void select(int c) { pick(c); }
     void pick(int c) {
         selectedChannel = c;
         for (size_t i = 0; i < strips.size(); ++i) { strips[i]->selected = int(i) == c; strips[i]->repaint(); }
-        panel.setChannel(c);
+        panel.setChannel(c); if (fxOpen_) fxPanel.setChannel(c);
+        updateLit();
         if (onSelect) onSelect(c);
     }
     void refreshAll() {
@@ -310,17 +325,22 @@ public:
             strips[i]->setVisible(!h);
             if (!h) vis.push_back(strips[i].get());
         }
-        int w = vis.empty() ? 0 : juce::jmin(112, r.getWidth() / int(vis.size()));
-        for (auto* s : vis) s->setBounds(r.removeFromLeft(w));
+        const int fxW = fxOpen_ ? 300 : 0;   // the FX panel opens right after the selected strip
+        int w = vis.empty() ? 0 : juce::jmin(112, (r.getWidth() - fxW) / int(vis.size()));
+        for (size_t i = 0; i < strips.size(); ++i) {
+            if (mx.state().channels[i].hidden) continue;
+            strips[i]->setBounds(r.removeFromLeft(w));
+            if (fxOpen_ && int(i) == selectedChannel) fxPanel.setBounds(r.removeFromLeft(fxW).reduced(2));
+        }
     }
 private:
     void timerCallback() override {   // meters read straight from the engine
         for (size_t i = 0; i < strips.size(); ++i) { strips[i]->setMeter(eng.inputPeakDb(int(i))); strips[i]->setGr(eng.gainReductionDb(int(i))); }
         mainL.setDb(eng.outputPeakDb(0)); mainR.setDb(eng.outputPeakDb(1));
     }
-    bool panelOpen_ = false;
+    bool panelOpen_ = false, fxOpen_ = false;
     wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; wm::engine::AudioEngine& eng;
-    std::vector<std::unique_ptr<Strip>> strips; StripPanel panel; juce::Slider main; juce::TextButton dim; Meter mainL, mainR;
+    std::vector<std::unique_ptr<Strip>> strips; StripPanel panel; FxChainPanel fxPanel; juce::Slider main; juce::TextButton dim; Meter mainL, mainR;
     juce::Rectangle<int> mainCard;
 };
 }  // namespace wmui

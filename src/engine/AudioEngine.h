@@ -6,12 +6,14 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstring>
 #include <memory>
 #include <vector>
 #include "../mixer/MixerModel.h"
 #include "../mixer/RoutingMatrix.h"
 #include "Dsp.h"
 #include "Reverb.h"
+#include "Chain.h"
 #include "TripleBuffer.h"
 
 namespace wm::engine {
@@ -34,7 +36,9 @@ public:
         for (int i = 0; i < 3; ++i) { snaps_.all(i).state = mx_.state(); snaps_.all(i).routing = rt_; }
         cur_.assign(kMaxChannels * kMaxBuses * 2, 0.0f);
         curSend_.assign(kMaxChannels * 2, 0.0f); wl_.assign(size_t(maxFrames), 0.0f); wr_.assign(size_t(maxFrames), 0.0f); srcp_.assign(kMaxChannels, nullptr);
-        fx_.assign(kMaxChannels, ChannelFx{});
+        fx_.assign(kMaxChannels, ChannelFx{}); chain_.assign(kMaxChannels, ChannelChain{}); for (auto& c : chain_) c.prepare(sr_);
+        fxIn_.reset(new std::atomic<float>[kMaxChannels * kFxKinds]); fxOut_.reset(new std::atomic<float>[kMaxChannels * kFxKinds]);
+        for (size_t i = 0; i < kMaxChannels * kFxKinds; ++i) { fxIn_[i] = 0; fxOut_[i] = 0; }
         buf_.assign(kMaxChannels, std::vector<float>(size_t(maxFrames)));
         peakIn_.reset(new std::atomic<float>[kMaxChannels]); gr_.reset(new std::atomic<float>[kMaxChannels]);
         peakOut_.reset(new std::atomic<float>[kMaxBuses * 2]);
@@ -78,11 +82,32 @@ public:
             for (int i = 0; i < n; ++i) pk = std::max(pk, std::fabs(in[c][i]));
             peakIn_[c].store(pk, std::memory_order_relaxed);
             srcp_[c] = in[c];
-            if (ch.fx.eqOn || ch.fx.compOn) {
-                fx_[c].process(ch.fx, sr_, in[c], buf_[c].data(), n);
-                srcp_[c] = buf_[c].data();
+            bool chainOn = false; for (int k = 0; k < kFxKinds; ++k) chainOn = chainOn || ch.chain.s[k].on;
+            if (ch.fx.eqOn || ch.fx.compOn || chainOn) {
+                float* b = buf_[c].data();
+                if (ch.fx.eqOn || ch.fx.compOn) fx_[c].process(ch.fx, sr_, in[c], b, n); else std::memcpy(b, in[c], size_t(n) * sizeof(float));
+                float ip[kFxKinds], op[kFxKinds];
+                chain_[c].process(ch.chain, b, n, ip, op);
+                for (int k = 0; k < kFxKinds; ++k) { fxIn_[c * kFxKinds + size_t(k)].store(ip[k], std::memory_order_relaxed); fxOut_[c * kFxKinds + size_t(k)].store(op[k], std::memory_order_relaxed); }
+                srcp_[c] = b;
                 gr_[c].store(fx_[c].gainReductionDb(), std::memory_order_relaxed);
-            } else { fx_[c].process(ch.fx, sr_, in[c], buf_[c].data(), 0); gr_[c].store(0.0f, std::memory_order_relaxed); }   // both off: bypass, state cleared
+            } else {   // everything off: bypass, the signal is not touched and all state is cleared
+                fx_[c].process(ch.fx, sr_, in[c], buf_[c].data(), 0); chain_[c].process(ch.chain, buf_[c].data(), 0);
+                for (int k = 0; k < kFxKinds; ++k) { fxIn_[c * kFxKinds + size_t(k)].store(0, std::memory_order_relaxed); fxOut_[c * kFxKinds + size_t(k)].store(0, std::memory_order_relaxed); }
+                gr_[c].store(0.0f, std::memory_order_relaxed);
+            }
+        }
+        // M/S FX on linked pairs (left channel's chain holds the setting)
+        for (size_t c = 0; c + 1 < nc; ++c) {
+            const auto& ch = st.channels[c];
+            if (!ch.stereoLinked) continue;
+            const auto& ms = ch.chain.s[kMidSide];
+            if (ms.on) {
+                for (size_t q : {c, c + 1}) if (srcp_[q] == in[q]) { std::memcpy(buf_[q].data(), in[q], size_t(n) * sizeof(float)); srcp_[q] = buf_[q].data(); }
+                chain_[c].processMidSide(ms, buf_[c].data(), buf_[c + 1].data(), n);
+                fxIn_[c * kFxKinds + kMidSide].store(1.0f, std::memory_order_relaxed); fxOut_[c * kFxKinds + kMidSide].store(1.0f, std::memory_order_relaxed);
+            } else chain_[c].processMidSide(ms, nullptr, nullptr, 0);
+            ++c;
         }
         // Pass 2: routing. A channel with "stereoLinked" is the left of a pair with the next channel (the right one
         // follows the left one's fader, mute, solo, pan (balance), width and M/S settings).
@@ -158,6 +183,9 @@ public:
         }
     }
     // UI thread readers (atomics).
+    // Per-FX level before and after (linear peak of the last block); 0 = idle, which is what an Off FX reports.
+    float fxInPeak(int c, int kind) const { return fxIn_[size_t(c) * kFxKinds + size_t(kind)].load(std::memory_order_relaxed); }
+    float fxOutPeak(int c, int kind) const { return fxOut_[size_t(c) * kFxKinds + size_t(kind)].load(std::memory_order_relaxed); }
     float gainReductionDb(int c) const { return gr_[size_t(c)].load(std::memory_order_relaxed); }
     float inputPeakDb(int c) const { return toDb(peakIn_[size_t(c)].load(std::memory_order_relaxed)); }
     float outputPeakDb(int o) const { return toDb(peakOut_[size_t(o)].load(std::memory_order_relaxed)); }
@@ -174,6 +202,8 @@ private:
     std::vector<float> cur_, curSend_, wl_, wr_;
     std::vector<const float*> srcp_;
     std::vector<ChannelFx> fx_;
+    std::vector<ChannelChain> chain_;
+    std::unique_ptr<std::atomic<float>[]> fxIn_, fxOut_;
     std::vector<ReverbUnit> rev_;
     std::vector<ShimmerDelay> dly_;
     std::vector<std::vector<float>> buf_;
