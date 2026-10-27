@@ -2,10 +2,7 @@
 // in engine/Chain.h. RULE: Off = bypass. An FX that is off shows idle meters ("off"), dimmed knobs, and the engine does not
 // run it at all. Included by MixerView.h (needs Meter and col::).
 #pragma once
-#include <juce_gui_basics/juce_gui_basics.h>
-#include "../engine/AudioEngine.h"
-
-namespace wmui {
+// (Included inside namespace wmui, after Meter and col:: are defined.)
 class FxChainPanel : public juce::Component, private juce::Timer {
 public:
     static constexpr int kEq = 100, kDyn = 101;   // ids for the two older FX; chain FX use their engine::FxKind value
@@ -92,4 +89,3 @@ private:
     juce::ComboBox typeBox; juce::TextButton onBtn, close; Meter meterIn, meterOut; juce::Slider knobs[4]; juce::Label labels[4];
     juce::OwnedArray<juce::TextButton> chips; juce::String inTxt = "off", outTxt = "off";
 };
-}  // namespace wmui
