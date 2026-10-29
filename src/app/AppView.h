@@ -48,6 +48,7 @@ public:
         settingsView.onSettingsChanged = [this] { applyPrefs(); mixerView.refreshAll(); savePrefs(); };
         mixerView.onOpenFx = [this] { tabs.setCurrentTabIndex(1); };
         routing.onPrefs = [this] { savePrefs(); }; routing.devices = [this] { return audioDevices ? audioDevices() : std::vector<MockRoutingView::Dev>{}; };
+        mixerView.addOutputPair = [this](int hw) { return addOutputPair(hw); };
         mixerView.onUndo = [this] { doUndo(); }; mixerView.onRedo = [this] { doRedo(); }; mixerView.onOpenRouting = [this] { tabs.setCurrentTabIndex(2); }; mixerView.onOpenReverb = [this] { tabs.setCurrentTabIndex(3); };
         mixerView.deviceStatus = [this] { return digifaceStatus ? digifaceStatus() : std::string("Digiface USB"); };
         addAndMakeVisible(tabs);
@@ -113,7 +114,7 @@ public:
             else if (r > 0 && r <= int(names.size())) { recallSnap(names[size_t(r - 1)]); wsName = juce::String(names[size_t(r - 1)]); }
         });
     }
-    std::function<void(const std::string&)> onChannelAdded;
+    std::function<void(const std::string&)> onChannelAdded, onBusAdded;
     std::function<std::vector<MockRoutingView::Dev>()> audioDevices;   // Routing page device list (set by the app when the build can list devices)
     std::function<std::string()> digifaceStatus;   // shown at the right of the toolbar
     std::function<void()> onWorkspaceLoaded;        // the hardware mixer resends everything
@@ -172,6 +173,14 @@ private:
         return s;
     }
     wm::mixer::Workspace current() const { return {mx.state(), rt}; }
+    // A hardware output pair that has no strip yet (for example ADAT 17/18) gets one when it is assigned (Main out, Phones ...).
+    int addOutputPair(int hw) {
+        if (int(mx.state().buses.size()) >= int(wm::engine::kMaxBuses)) return -1;
+        const std::string n = hw >= 32 ? "PH" : "ADAT " + std::to_string(hw + 1) + "/" + std::to_string(hw + 2);
+        mx.addBus(n, hw, true); rt.addOutput(); if (onBusAdded) onBusAdded(n);
+        eng.sync(); settingsView.rebuild();
+        return int(mx.state().buses.size()) - 1;
+    }
     void addChannel() {
         if (mx.state().channels.size() >= wm::engine::kMaxChannels) return;
         mx.addChannel(); rt.addInput();

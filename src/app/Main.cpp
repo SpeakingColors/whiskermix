@@ -84,6 +84,9 @@ public:
             return v;
         };
 #endif
+#ifndef WM_JUCE_AUDIO
+        view->onBusAdded = [this](const std::string& n) { pw.addBus(n); };
+#endif
         view->onWorkspaceLoaded = [this] { digiface->resend(); };
 #ifndef WM_JUCE_AUDIO
         view->onChannelAdded = [this](const std::string& n) { pw.addInput(n); };

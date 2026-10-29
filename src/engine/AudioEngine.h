@@ -18,7 +18,7 @@
 
 namespace wm::engine {
 
-constexpr size_t kMaxChannels = 64, kMaxBuses = 8;   // everything is preallocated for these, so channels can be added live
+constexpr size_t kMaxChannels = 64, kMaxBuses = 24;   // everything is preallocated for these, so channels can be added live
 
 inline float dbToLin(float db) { return db <= -119.0f ? 0.0f : std::pow(10.0f, db / 20.0f); }
 

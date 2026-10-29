@@ -68,6 +68,7 @@ public:
         for (int i = 0; i < busCount; ++i) state_.buses[size_t(i)].name = "Bus " + std::to_string(i + 1);
     }
     State& state() { return state_; }
+    void addBus(const std::string& name, int hwFirst, bool stereo) { Bus b; b.name = name; b.hwFirst = hwFirst; b.stereo = stereo; state_.buses.push_back(b); }
     const State& state() const { return state_; }
 
     int addChannel() {

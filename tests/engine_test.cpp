@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdlib>
 #include "../src/engine/AudioEngine.h"
+#include "../src/mixer/Layout.h"
 using namespace wm;
 static int fails = 0;
 #define CHECK(c) do { if (!(c)) { std::printf("FAIL line %d: %s\n", __LINE__, #c); ++fails; } } while (0)
@@ -154,6 +155,16 @@ int main() {
         CHECK(near(out2[2][255], 0.6f) && near(out2[3][255], 0.2f));            // FX send reaches the last bus
         m2.state().channels[0].fxSendDb = -60.0f; run(e2, in2, out2);
         CHECK(near(out2[2][255], 0.0f, 1e-4f));
+    }
+    {   // the studio layout has more than 8 buses: audio must still play (the engine once went silent above 8)
+        auto b = mixer::buildFromLayout(mixer::studioLayout());
+        engine::AudioEngine e3(b.mixer, b.routing); e3.prepare(256);
+        const int nc = int(b.mixer.state().channels.size()), nb = int(b.mixer.state().buses.size());
+        CHECK(nb > 8);
+        std::vector<std::vector<float>> in3(size_t(nc), std::vector<float>(256, 0.5f)), out3(size_t(nb) * 2, std::vector<float>(256));
+        b.mixer.state().channels[size_t(nc) - 9].gainDb = 0.0f;   // COMPUTER playback, routed to Main
+        run(e3, in3, out3);
+        CHECK(std::fabs(out3[0][255]) > 0.001f || std::fabs(out3[1][255]) > 0.001f);
     }
     if (!fails) std::puts("engine_test: all passed");
     return fails ? 1 : 0;

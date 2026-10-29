@@ -322,6 +322,7 @@ class MockMixerView : public juce::Component, private juce::Timer {
 public:
     int selectedChannel = 0;
     std::function<void(int)> onSelect;
+    std::function<int(int)> addOutputPair;   // creates the output strip for a hardware pair that has none; returns its bus index or -1
     std::function<void()> onOpenFx, onUndo, onRedo, onOpenRouting, onOpenReverb, onStructure;
     std::function<std::string()> deviceStatus;
     MockMixerView(wm::mixer::Mixer& m, wm::mixer::RoutingMatrix& r, wm::engine::AudioEngine& e)
@@ -490,7 +491,7 @@ private:
         return "ADAT " + juce::String(hw + 1) + (stereo ? "/" + juce::String(hw + 2) : juce::String());
     }
     // Assign dropdown, like TotalMix: Main Out, Main Out B, Phones 1-4, Cue/PFL to; each takes one hardware output pair (or None).
-    // A pair can be picked when the layout has an output strip for it; that strip then moves into the control room section.
+    // Any pair can be picked; a pair without a strip gets one, and the strip moves into the control room section.
     void showAssignMenu() {
         auto& bs = mx.state().buses; juce::PopupMenu m;
         static const char* names[7] = {"Main Out", "Main Out B", "Phones 1", "Phones 2", "Phones 3", "Phones 4", "Cue/PFL to"};
@@ -502,7 +503,7 @@ private:
             for (int hw = 0; hw <= 32; hw += 2) {
                 if (hw > 30 && hw != 32) continue;
                 int bi = -1; for (size_t i = 0; i < bs.size(); ++i) if (bs[i].hwFirst == hw && bs[i].stereo) bi = int(i);
-                sub.addItem(role * 1000 + hw + 1, hwName(hw, true) + (bi < 0 ? "  (no strip in layout)" : ""), bi >= 0, bi >= 0 && bi == holder);
+                sub.addItem(role * 1000 + hw + 1, hwName(hw, true), true, bi >= 0 && bi == holder);
             }
             m.addSubMenu(names[role - 1], sub);
         }
@@ -514,7 +515,11 @@ private:
             int old = -1; for (size_t i = 0; i < b.size(); ++i) if (b[i].controlRoom && b[i].crRole == role) old = int(i);
             if (old < 0 && role == 1) old = mi; if (old < 0 && role == 2) old = ai;
             if (old >= 0) { b[size_t(old)].controlRoom = false; b[size_t(old)].crRole = 0; b[size_t(old)].solo = false; }
-            if (hw >= 0) for (auto& x : b) if (x.hwFirst == hw && x.stereo) { x.controlRoom = true; x.crRole = role; x.solo = false; break; }
+            if (hw >= 0) {
+                int bi = -1; for (size_t i = 0; i < b.size(); ++i) if (b[i].hwFirst == hw && b[i].stereo) bi = int(i);
+                if (bi < 0 && addOutputPair) bi = addOutputPair(hw);
+                if (bi >= 0) { auto& x = mx.state().buses[size_t(bi)]; x.controlRoom = true; x.crRole = role; x.solo = false; }
+            }
             // keep implicit roles explicit so the other one does not change when this one moves
             refreshAll(); if (onStructure) onStructure();
         });
