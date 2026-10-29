@@ -38,7 +38,7 @@ public:
         for (auto* b : {&undoB, &redoB}) b->fontSize = 14.0f;
         showPage(0); refreshQuick(); startTimerHz(8);
     }
-    void showPage(int i) { page = i; app.showPage(i); for (int k = 0; k < tabsBtn.size(); ++k) tabsBtn[k]->setToggleState(k == i, juce::dontSendNotification); repaint(); }
+    void showPage(int i) { page = i; app.showPage(i); layoutPage(); for (int k = 0; k < tabsBtn.size(); ++k) tabsBtn[k]->setToggleState(k == i, juce::dontSendNotification); repaint(); }
     void timerCallback() override { refreshQuick(); auto t = juce::String(juce::CharPointer_UTF8("\xF0\x9F\x92\xBE Workspace: ")) + app.workspaceName() + juce::String(juce::CharPointer_UTF8(" \xE2\x96\xBE")); if (t != wsB.getButtonText()) wsB.setButtonText(t); }
     void refreshQuick() { for (int i = 0; i < quick.size(); ++i) quick[i]->setToggleState(i == app.currentSlot(), juce::dontSendNotification); undoB.setEnabled(app.canUndo()); redoB.setEnabled(app.canRedo()); }
     void setPercent(int p) { if (p != pct) { pct = p; sizeB.setButtonText(juce::String(juce::CharPointer_UTF8("\xE2\xA4\xA1 ")) + juce::String(p) + "%"); } }
@@ -66,7 +66,14 @@ public:
         sizeB.setBounds(881, 23, 59, 30); infoB.setBounds(958, 22, 32, 32); gearB.setBounds(996, 22, 32, 32);
         wsB.setBounds(54, 64, 187, 28); for (int i = 0; i < 5; ++i) quick[i]->setBounds(244 + 29 * i, 64, 26, 28);
         saveB.setBounds(389, 64, 48, 28); loadB.setBounds(441, 64, 59, 28); undoB.setBounds(502, 64, 30, 28); redoB.setBounds(535, 64, 30, 28);
-        app.setBounds(kCheek + kPadX, kContentY, kW - 2 * (kCheek + kPadX), kH - kContentY - 18);
+        layoutPage();
+    }
+    void layoutPage() {
+        using namespace mock;
+        const bool pulse = page == 3 || page == 4;   // Pulse 16 and Settings have no workspace row in the mockup
+        wsB.setVisible(!pulse); saveB.setVisible(!pulse); loadB.setVisible(!pulse); undoB.setVisible(!pulse); redoB.setVisible(!pulse); for (auto* q : quick) q->setVisible(!pulse);
+        const int y = pulse ? 66 : kContentY;
+        app.setBounds(kCheek + kPadX, y, kW - 2 * (kCheek + kPadX), kH - y - 18);
     }
     void mouseUp(const juce::MouseEvent& e) override {
         if (!e.mouseWasDraggedSinceMouseDown() && (e.x < mock::kCheek || e.x >= mock::kW - mock::kCheek) && resetSize) resetSize();   // wood cheek click = 100%

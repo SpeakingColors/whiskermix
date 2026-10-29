@@ -11,7 +11,7 @@ namespace wmui {
 
 class PulseLink : public wm::pulse16::Transport, public juce::MidiInputCallback {
 public:
-    std::function<void(const wm::pulse16::Bytes&)> onSysEx;   // called on the message thread, full F0 .. F7 message
+    std::function<void(const wm::pulse16::Bytes&)> onSysEx, onSent;   // onSent: a message we sent (for the SysEx log)   // called on the message thread, full F0 .. F7 message
     ~PulseLink() override { *alive = false; close(); }
 
     bool open(const juce::String& inId, const juce::String& outId) {
@@ -27,6 +27,7 @@ public:
 
     void sendSysEx(const wm::pulse16::Bytes& m) override {
         if (!out || m.size() < 3) return;
+        if (onSent) onSent(m);
         out->sendMessageNow(juce::MidiMessage::createSysExMessage(m.data() + 1, int(m.size()) - 2));
     }
     void handleIncomingMidiMessage(juce::MidiInput*, const juce::MidiMessage& m) override {

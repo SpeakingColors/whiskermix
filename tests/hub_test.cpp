@@ -38,6 +38,7 @@ int main() {
     State b; assert(fromJson(toJson(st), b));
     assert(b.channels[0].colour == 4 && b.channels[0].emoji == c.emoji && b.channels[0].midSide && b.channels[0].cue && b.channels[0].hidden && std::abs(b.channels[0].width - 1.4f) < 1e-3 && b.channels[0].fxSendDb == -20);
     Settings a; a.tooltips = false; a.peakHoldSec = 99; a.autosave = false;
-    Settings b2; assert(b2.fromJson(a.toJson()) && !b2.tooltips && !b2.autosave && b2.peakHoldSec == 10.0f && b2.doubleClickReset);
+    a.setOpt("theme", 2); a.setOpt("clip", 3);
+    Settings b2; assert(b2.fromJson(a.toJson()) && b2.getOpt("theme", 0) == 2 && b2.getOpt("clip", 0) == 3 && b2.getOpt("none", 7) == 7 && !b2.tooltips && !b2.autosave && b2.peakHoldSec == 10.0f && b2.doubleClickReset);
     std::puts("hub_test ok");
 }

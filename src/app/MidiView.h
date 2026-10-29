@@ -153,6 +153,9 @@ public:
                 rep.channelIds = optT[3].getToggleState(); rep.truncateSysEx = optT[4].getToggleState(); rep.lastLog = optT[5].getToggleState();
                 rep.audio = optT[6].getToggleState(); rep.crash = optT[7].getToggleState(); };
             addAndMakeVisible(optT[i]); }
+        { const char* an[4] = {"Generic", "DAW vendor", "Device maker", "Us (GitHub)"};
+          for (int i = 0; i < 4; ++i) { btn(audB[i], an[i], "Who the report is for: only changes the first line of the report"); audB[i].setClickingTogglesState(true); audB[i].setRadioGroupId(14); audB[i].onClick = [this, i] { audience = i; if (preview.isVisible()) preview.setText(report(), false); }; }
+          audB[0].setToggleState(true, juce::dontSendNotification); }
         btn(prevB, "Preview report", "Show exactly what would be saved"); prevB.onClick = [this] { preview.setVisible(!preview.isVisible()); preview.setText(report(), false); resized(); };
         btn(zipB, "Save .zip", "Save the report as a zip you can send yourself");
         zipB.setColour(juce::TextButton::buttonColourId, col::teal); zipB.setColour(juce::TextButton::textColourOffId, col::bg);
@@ -174,6 +177,7 @@ public:
         drawCard(g, editCard, "Edit device", col::title);
         if (!hub.devices().empty() && sel < int(hub.devices().size())) { g.setColour(stripColour(edit.colour)); g.setFont(15.0f); g.drawText(juce::String(edit.name), editCard.getX() + 110, editCard.getY() + 4, 300, 20, juce::Justification::centredLeft); }
         drawCard(g, snapCard, "MIDI snapshots", col::title);
+        for (int i = 0; i < 4; ++i) {}
         drawCard(g, logCard, "Live MIDI log", col::title);
         drawCard(g, repCard, "Export debug report . anonymous", col::title);
         g.setColour(col::dim); g.setFont(12.0f);
@@ -181,27 +185,29 @@ public:
         g.drawText("In port", labX, inE.getY(), 80, 24, juce::Justification::centredLeft); g.drawText("Out port", labX2, outE.getY(), 80, 24, juce::Justification::centredLeft);
         g.drawText("Clock", labX, clockB[0].getY(), 80, 24, juce::Justification::centredLeft); g.drawText("Log shows", labX2, pcT.getY(), 80, 24, juce::Justification::centredLeft);
         g.drawText("Colour", labX2, sw.getY(), 80, 24, juce::Justification::centredLeft); g.drawText("MIDI channel", labX2, singleB.getY(), 90, 24, juce::Justification::centredLeft);
-        g.drawText("Keeps the last 5000 messages. Clock shows one line per beat. Nothing is sent anywhere automatically.", logCard.getX() + 130, logCard.getY() + 6, logCard.getWidth() - 140, 18, juce::Justification::centredRight);
+        g.drawText("Keeps the last 5000 messages. Clock shows one line per beat. Nothing is sent anywhere automatically.", logCard.getX() + 130, logCard.getY() + 8, logCard.getWidth() - 140, 16, juce::Justification::centredRight);
+        g.drawText("Recall by Program Change on channel 16", snapCard.getRight() - 331, snapCard.getY() + 12, 320, 18, juce::Justification::centredRight);
+        g.drawText("Plain report for any support desk: system, audio settings, devices, last MIDI log lines. You review everything first; nothing is sent automatically.", repCard.getX() + 11, repCard.getY() + 36, repCard.getWidth() - 22, 14, juce::Justification::centredLeft);
     }
     void resized() override {
-        auto r = getLocalBounds().reduced(8);
+        auto r = getLocalBounds();
         devRows = rowsFor(r.getWidth() - 24);
-        devCard = r.removeFromTop(devRows * 36 + 70); r.removeFromTop(8);
-        editCard = r.removeFromTop(236); r.removeFromTop(8);
-        snapCard = r.removeFromTop(58); r.removeFromTop(8);
-        int logH = fullB.getToggleState() ? 460 : 230;
-        logCard = r.removeFromTop(logH + 90); r.removeFromTop(8);
-        repCard = r.removeFromTop(preview.isVisible() ? 340 : 150);
+        devCard = r.removeFromTop(devRows * 38 + 52); r.removeFromTop(14);
+        editCard = r.removeFromTop(279); r.removeFromTop(14);
+        snapCard = r.removeFromTop(44); r.removeFromTop(14);
+        int logH = fullB.getToggleState() ? 460 : 100;
+        logCard = r.removeFromTop(logH + 90); r.removeFromTop(14);
+        repCard = r.removeFromTop(preview.isVisible() ? 360 : 165);
         // devices
-        auto d = devCard.reduced(12); d.removeFromTop(22);
-        rescanB.setBounds(devCard.getRight() - 90, devCard.getY() + 6, 78, 24);
+        auto d = devCard.reduced(11); d.removeFromTop(28);
+        rescanB.setBounds(devCard.getRight() - 68, devCard.getY() + 10, 58, 20);
         layoutCards(d);
         // edit
-        auto e = editCard.reduced(12); e.removeFromTop(26);
+        auto e = editCard.reduced(11); e.removeFromTop(32);
         int half = e.getWidth() / 2; labX = e.getX(); labX2 = e.getX() + half + 12;
         auto L = e.removeFromLeft(half - 6); auto R = e; R.removeFromLeft(18);
-        auto rowL = [&L]() { auto x = L.removeFromTop(30); L.removeFromTop(4); return x.withTrimmedLeft(80); };
-        auto rowR = [&R]() { auto x = R.removeFromTop(30); R.removeFromTop(4); return x.withTrimmedLeft(88); };
+        auto rowL = [&L]() { auto x = L.removeFromTop(30); L.removeFromTop(10); return x.withTrimmedLeft(108); };
+        auto rowR = [&R]() { auto x = R.removeFromTop(30); R.removeFromTop(10); return x.withTrimmedLeft(108); };
         nameE.setBounds(rowL()); emojiC.setBounds(rowL().removeFromLeft(160)); inE.setBounds(rowL());
         { auto c = rowL(); int w = c.getWidth() / 3; for (int i = 0; i < 3; ++i) clockB[i].setBounds(c.removeFromLeft(w).reduced(1)); }
         { auto c = rowR(); sw.setBounds(c.removeFromLeft(9 * 28)); }
@@ -211,9 +217,10 @@ public:
         { auto c = editCard.reduced(12).removeFromBottom(30); saveB.setBounds(c.removeFromLeft(70).reduced(1)); revertB.setBounds(c.removeFromLeft(80).reduced(1)); forgetB.setBounds(c.removeFromLeft(130).reduced(1)); }
         layoutEdit();
         // snapshots
-        auto s = snapCard.reduced(12); s.removeFromTop(18);
-        snapName.setBounds(s.removeFromRight(120).reduced(0, 1)); storeB.setBounds(s.removeFromRight(70).reduced(2, 1)); s.removeFromRight(4);
-        for (size_t i = 0; i < snapB.size(); ++i) snapB[i]->setBounds(s.removeFromLeft(100).reduced(2, 1));
+        auto s = snapCard.reduced(11, 8); s.removeFromLeft(130); s.removeFromRight(330);
+        snapName.setBounds(juce::Rectangle<int>(0, 0, 0, 0));
+        for (size_t i = 0; i < snapB.size(); ++i) snapB[i]->setBounds(s.removeFromLeft(juce::jmax(50, 20 + 8 * snapB[i]->getButtonText().length())).reduced(2, 0));
+        storeB.setBounds(s.removeFromLeft(54).reduced(2, 0));
         // log
         auto l = logCard.reduced(12); auto bar = l.removeFromTop(28 + 20); bar.removeFromTop(20);
         pauseB.setBounds(bar.removeFromLeft(70).reduced(2)); fullB.setBounds(bar.removeFromLeft(80).reduced(2)); saveLogB.setBounds(bar.removeFromLeft(100).reduced(2)); clearB.setBounds(bar.removeFromLeft(70).reduced(2));
@@ -221,7 +228,8 @@ public:
         logView.setBounds(l.removeFromTop(logH));
         shareNote.setBounds(l.removeFromTop(30).reduced(0, 4));
         // report
-        auto p = repCard.reduced(12); p.removeFromTop(24);
+        for (int i = 0; i < 4; ++i) audB[i].setBounds(repCard.getRight() - 11 - (4 - i) * 86 + (i == 3 ? 6 : 0), repCard.getY() + 6, i == 3 ? 92 : 84, 26);
+        auto p = repCard.reduced(12); p.removeFromTop(48);
         auto grid = p.removeFromTop(56); int cw = grid.getWidth() / 4;
         for (int i = 0; i < 8; ++i) optT[i].setBounds(grid.getX() + (i % 4) * cw, grid.getY() + (i / 4) * 28, cw - 4, 26);
         p.removeFromTop(6); auto rowb = p.removeFromTop(32);
@@ -230,7 +238,7 @@ public:
     }
     void rescanPorts() { rescan(); }
     void refresh() { rebuildCards(); selectDevice(juce::jmin(sel, int(hub.devices().size()) - 1)); rebuildSnaps(); }
-    int neededHeight() const { return 8 + (devRows * 36 + 70) + 8 + 236 + 8 + 58 + 8 + ((fullB.getToggleState() ? 460 : 230) + 90) + 8 + (preview.isVisible() ? 340 : 150) + 8; }
+    int neededHeight() const { return (devRows * 38 + 52) + 14 + 279 + 14 + 44 + 14 + ((fullB.getToggleState() ? 460 : 100) + 90) + 14 + (preview.isVisible() ? 360 : 165); }
 private:
     int rowsFor(int width) const {
         int x = 0, rows = 1;
@@ -245,8 +253,8 @@ private:
         int x = d.getX(), y = d.getY();
         for (auto& c : cardB) {
             int w = 28 + 8 * c->getButtonText().length();
-            if (x + w > d.getRight() && x > d.getX()) { x = d.getX(); y += 36; }
-            c->setBounds(x, y, w, 30); x += w + 8;
+            if (x + w > d.getRight() && x > d.getX()) { x = d.getX(); y += 38; }
+            c->setBounds(x, y, w, 32); x += w + 8;
         }
     }
     void layoutEdit() {
@@ -303,12 +311,13 @@ private:
         resized();
     }
     juce::String report() const {
-        return juce::String(hub.debugReport(rep, std::string("WhiskerMix ") + JUCE_APPLICATION_VERSION_STRING, juce::SystemStats::getOperatingSystemName().toStdString(), ""));
+        static const char* aud[4] = {"Generic", "DAW vendor", "Device maker", "Us (GitHub)"};
+        return juce::String("Report for: ") + aud[audience] + "\n" + juce::String(hub.debugReport(rep, std::string("WhiskerMix ") + JUCE_APPLICATION_VERSION_STRING, juce::SystemStats::getOperatingSystemName().toStdString(), ""));
     }
     void refreshLog(bool force) {
         if (pauseB.getToggleState() && !force) return;
         logView.rows = hub.filtered(filter);
-        int maxRows = fullB.getToggleState() ? 23 : 11;
+        int maxRows = fullB.getToggleState() ? 23 : 5;
         if (int(logView.rows.size()) > maxRows) logView.rows.resize(size_t(maxRows));
         logView.repaint();
         auto w = hub.lastWarning();
@@ -316,11 +325,11 @@ private:
     }
     void timerCallback() override { refreshLog(false); }
 
-    wm::mixer::MidiHub& hub; MidiMonitor monitor; wm::mixer::MidiDevice edit; int sel = 0, filter = 0, devRows = 1, labX = 0, labX2 = 0;
+    wm::mixer::MidiHub& hub; MidiMonitor monitor; wm::mixer::MidiDevice edit; int audience = 0, sel = 0, filter = 0, devRows = 1, labX = 0, labX2 = 0;
     wm::mixer::ReportOptions rep;
     juce::Rectangle<int> devCard, editCard, snapCard, logCard, repCard;
     std::vector<std::unique_ptr<juce::TextButton>> cardB, snapB;
-    juce::TextButton rescanB, singleB, multiB, clockB[3], saveB, revertB, forgetB, storeB, filtB[5], pauseB, fullB, saveLogB, clearB, prevB, zipB, copyB;
+    juce::TextButton audB[4]; juce::TextButton rescanB, singleB, multiB, clockB[3], saveB, revertB, forgetB, storeB, filtB[5], pauseB, fullB, saveLogB, clearB, prevB, zipB, copyB;
     juce::TextEditor nameE, inE, outE, loE, hiE, snapName, preview; juce::ComboBox emojiC; Swatches sw;
     juce::ToggleButton pcT, ccT, trT, sxT, optT[8]; LogView logView; juce::Label shareNote;
     std::unique_ptr<juce::FileChooser> chooser;

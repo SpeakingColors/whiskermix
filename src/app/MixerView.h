@@ -9,8 +9,8 @@
 
 namespace wmui {
 namespace col {  // Soda Pop palette
-const juce::Colour bg(0xff1b1b1f), panel(0xff26262c), text(0xffe8e8ee), teal(0xff01fcdc), mint(0xff02ebba),
-    orange(0xffff9000), yellow(0xffffd100), violet(0xffa43dff), pink(0xffff1383), title(0xffc7c9ff), dim(0xff9a9aa8);
+const juce::Colour bg(0xff2a2c31), field(0xff1f2125), panel(0xff34373e), line(0xff4a4e57), text(0xffeceae4), teal(0xff01fcdc), mint(0xff02ebba),
+    orange(0xffff9000), yellow(0xffffd100), violet(0xffa43dff), pink(0xffff1383), title(0xffa8a59d), dim(0xffa8a59d);
 }
 
 // Emoji choices for channel names (UTF-8 escapes, so every compiler reads them the same way).

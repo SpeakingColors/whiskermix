@@ -15,7 +15,7 @@ inline const char* stripColourName(int i) {
 }
 
 struct SodaLook : juce::LookAndFeel_V4 {
-    juce::Colour bg{0xff1b1b1f}, panel{0xff26262c}, raised{0xff34343c}, text{0xffe8e8ee}, dim{0xff9a9aa8}, teal{0xff01fcdc}, orange{0xffff9000};
+    juce::Colour bg{0xff1f2125}, panel{0xff34373e}, raised{0xff3d4048}, text{0xffeceae4}, dim{0xffa8a59d}, teal{0xff01fcdc}, orange{0xffff9000}, line{0xff4a4e57};
     SodaLook() {
         setColour(juce::ResizableWindow::backgroundColourId, bg);
         setColour(juce::TextButton::buttonColourId, raised);
@@ -52,21 +52,24 @@ struct SodaLook : juce::LookAndFeel_V4 {
         if (!b.isEnabled()) c = c.withAlpha(0.35f);
         if (down) c = c.darker(0.2f); else if (over) c = c.brighter(0.15f);
         g.setColour(c); g.fillRoundedRectangle(r, 6.0f);
-        if (on) { g.setColour(c.withAlpha(0.35f)); g.drawRoundedRectangle(r.expanded(1.0f), 7.0f, 1.5f); }
+        if (!on) { g.setColour(line.withAlpha(0.8f)); g.drawRoundedRectangle(r, 6.0f, 1.0f); }
     }
+    juce::Font getTextButtonFont(juce::TextButton&, int) override { return juce::Font(11.5f, juce::Font::bold); }
+    juce::Font getComboBoxFont(juce::ComboBox&) override { return juce::Font(12.0f); }
+    juce::Font getLabelFont(juce::Label&) override { return juce::Font(12.0f); }
     void drawToggleButton(juce::Graphics& g, juce::ToggleButton& b, bool over, bool) override {
         auto r = b.getLocalBounds().toFloat();
         float s = juce::jmin(18.0f, r.getHeight() - 4.0f);
         auto box = juce::Rectangle<float>(r.getX() + 2.0f, r.getCentreY() - s / 2, s, s);
         bool on = b.getToggleState();
         g.setColour(on ? findColour(juce::ToggleButton::tickColourId) : bg); g.fillRoundedRectangle(box, 4.0f);
-        g.setColour(on ? findColour(juce::ToggleButton::tickColourId) : raised.brighter(over ? 0.3f : 0.0f)); g.drawRoundedRectangle(box, 4.0f, 1.5f);
+        g.setColour(on ? findColour(juce::ToggleButton::tickColourId) : line.brighter(over ? 0.3f : 0.0f)); g.drawRoundedRectangle(box, 4.0f, 1.0f);
         if (on) {
             juce::Path t; t.startNewSubPath(box.getX() + s * 0.25f, box.getCentreY()); t.lineTo(box.getX() + s * 0.44f, box.getBottom() - s * 0.27f);
             t.lineTo(box.getRight() - s * 0.22f, box.getY() + s * 0.27f);
             g.setColour(bg); g.strokePath(t, juce::PathStrokeType(2.2f));
         }
-        g.setColour(b.isEnabled() ? text : dim); g.setFont(13.0f);
+        g.setColour(b.isEnabled() ? text : dim); g.setFont(11.5f);
         g.drawText(b.getButtonText(), r.withTrimmedLeft(s + 10.0f), juce::Justification::centredLeft);
     }
     void drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h, float pos, float a0, float a1, juce::Slider& s) override {
@@ -115,7 +118,7 @@ struct SodaLook : juce::LookAndFeel_V4 {
     void drawTabbedButtonBarBackground(juce::TabbedButtonBar&, juce::Graphics& g) override { g.fillAll(bg); }
     void drawComboBox(juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox& cb) override {
         auto r = juce::Rectangle<float>(0, 0, float(w), float(h));
-        g.setColour(bg); g.fillRoundedRectangle(r, 6); g.setColour(cb.hasKeyboardFocus(true) ? teal : raised); g.drawRoundedRectangle(r.reduced(0.5f), 6, 1.2f);
+        g.setColour(bg); g.fillRoundedRectangle(r, 5); g.setColour(cb.hasKeyboardFocus(true) ? teal : line); g.drawRoundedRectangle(r.reduced(0.5f), 5, 1.0f);
         juce::Path p; float cx = float(w) - 14, cy = float(h) / 2;
         p.addTriangle(cx - 4, cy - 2, cx + 4, cy - 2, cx, cy + 3); g.setColour(teal); g.fillPath(p);
     }
@@ -123,8 +126,11 @@ struct SodaLook : juce::LookAndFeel_V4 {
 
 // Panel card: rounded navy box with a small caps title
 inline void drawCard(juce::Graphics& g, juce::Rectangle<int> r, const juce::String& title, juce::Colour titleCol = juce::Colour(0xffc7c9ff)) {
-    g.setColour(juce::Colour(0xff26262c)); g.fillRoundedRectangle(r.toFloat(), 8.0f);
-    if (title.isNotEmpty()) { g.setColour(titleCol); g.setFont(12.5f); g.drawText(title.toUpperCase(), r.getX() + 12, r.getY() + 6, r.getWidth() - 24, 18, juce::Justification::centredLeft); }
+    (void)titleCol;
+    g.setColour(juce::Colour(0xff34373e)); g.fillRoundedRectangle(r.toFloat(), 6.0f);
+    g.setColour(juce::Colour(0xff4a4e57)); g.drawRoundedRectangle(r.toFloat().reduced(0.5f), 6.0f, 1.0f);
+    if (title.isNotEmpty()) { juce::Font f(10.0f); f.setExtraKerningFactor(0.14f); g.setFont(f); g.setColour(juce::Colour(0xffa8a59d)); g.drawText(title.toUpperCase(), r.getX() + 11, r.getY() + 8, r.getWidth() - 24, 14, juce::Justification::centredLeft); }
+    g.setFont(juce::Font(12.0f));   // drop the letter-spaced title font so later text is normal
 }
 
 }  // namespace wmui

@@ -60,6 +60,18 @@ public:
         // Digiface hardware mixer: bus 0 = Main (control room), bus 1 = Speaker B (iLoud Micro).
         digiface = std::make_unique<wmui::DigifaceLink>(*mixer, 0, (mixer->state().buses.size() >= 2 && mixer->state().buses[1].controlRoom) ? 1 : -1);
         view->digifaceStatus = [this] { return digiface->status(); };
+#ifdef WM_JUCE_AUDIO
+        view->audioDevices = [this] {
+            std::vector<wmui::MockRoutingView::Dev> v;
+            if (auto* t = adm.getCurrentDeviceTypeObject()) {
+                auto outs = t->getDeviceNames(false), ins = t->getDeviceNames(true);
+                juce::StringArray all; all.addArray(outs); for (auto& n : ins) all.addIfNotAlreadyThere(n);
+                for (auto& n : all) v.push_back({n.toStdString(), std::string(ins.contains(n) ? "in" : "") + (ins.contains(n) && outs.contains(n) ? " + " : "") + (outs.contains(n) ? "out" : ""), "", true});
+                if (!v.empty()) v[0].status = "clock master";
+            }
+            return v;
+        };
+#endif
         view->onWorkspaceLoaded = [this] { digiface->resend(); };
 #ifndef WM_JUCE_AUDIO
         view->onChannelAdded = [this](const std::string& n) { pw.addInput(n); };

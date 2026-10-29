@@ -5,6 +5,7 @@
 #include <sstream>
 #include "MixerView.h"
 #include "MockMixer.h"
+#include "MockRouting.h"
 #include "FxView.h"
 #include "RoutingView.h"
 #include "ReverbView.h"
@@ -23,7 +24,7 @@ namespace wmui {
 class PulseHost : public juce::Component {
 public:
     PulseHost(PulseView& p, juce::Viewport& v) : pulse(p), vp(v) {}
-    void resized() override { vp.setBounds(getLocalBounds()); pulse.setSize(juce::jmax(900, getWidth() - 12), juce::jmax(getHeight(), 900)); }
+    void resized() override { vp.setBounds(getLocalBounds()); pulse.setSize(juce::jmax(900, getWidth() - 12), juce::jmax(getHeight(), pulse.neededHeight())); }
 private:
     PulseView& pulse; juce::Viewport& vp;
 };
@@ -46,6 +47,7 @@ public:
         settingsView.onChanged = [this] { mixerView.refreshAll(); routing.repaint(); };
         settingsView.onSettingsChanged = [this] { applyPrefs(); mixerView.refreshAll(); savePrefs(); };
         mixerView.onOpenFx = [this] { tabs.setCurrentTabIndex(1); };
+        routing.onPrefs = [this] { savePrefs(); }; routing.devices = [this] { return audioDevices ? audioDevices() : std::vector<MockRoutingView::Dev>{}; };
         mixerView.onUndo = [this] { doUndo(); }; mixerView.onRedo = [this] { doRedo(); }; mixerView.onOpenRouting = [this] { tabs.setCurrentTabIndex(2); }; mixerView.onOpenReverb = [this] { tabs.setCurrentTabIndex(3); };
         mixerView.deviceStatus = [this] { return digifaceStatus ? digifaceStatus() : std::string("Digiface USB"); };
         addAndMakeVisible(tabs);
@@ -112,6 +114,7 @@ public:
         });
     }
     std::function<void(const std::string&)> onChannelAdded;
+    std::function<std::vector<MockRoutingView::Dev>()> audioDevices;   // Routing page device list (set by the app when the build can list devices)
     std::function<std::string()> digifaceStatus;   // shown at the right of the toolbar
     std::function<void()> onWorkspaceLoaded;        // the hardware mixer resends everything
     void paint(juce::Graphics& g) override {
@@ -256,7 +259,7 @@ private:
             wm::mixer::State s = mx.state(); wm::mixer::RoutingMatrix keep = rt;
             if (wm::mixer::fromJson(f.loadFileAsString().toStdString(), s, rt)) { undo.push(current()); apply({s, rt}); if (onWorkspaceLoaded) onWorkspaceLoaded(); } });
     }
-    wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; MockMixerView mixerView; RoutingView routing; ReverbView reverb; wm::engine::AudioEngine& eng;
+    wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; MockMixerView mixerView; MockRoutingView routing; ReverbView reverb; wm::engine::AudioEngine& eng;
     wm::mixer::MidiHub hub; MidiView midi; PulseView pulse; PulseHost pulseHost{pulse, pulseVp}; juce::Viewport pulseVp; SettingsView settingsView; std::unique_ptr<juce::TooltipWindow> tipWin; int ticks = 0;
     juce::TabbedComponent tabs{juce::TabbedButtonBar::TabsAtTop};
     juce::TextButton undoB, redoB, addB, storeB, recallB, saveB, loadB; juce::ComboBox snapBox; juce::Label dfLabel;
