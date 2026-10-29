@@ -220,8 +220,8 @@ public:
         tog(pl, juce::CharPointer_UTF8("\xC3\x98L"), "Invert phase of the left channel", juce::Colour(0xffff9000)); tog(pr, juce::CharPointer_UTF8("\xC3\x98R"), "Invert phase of the right channel (stereo strip)", juce::Colour(0xffff9000));
         tog(fxB, "FX", "EQ on/off for this channel (Off = bypassed)", juce::Colour(0xff01fcdc)); tog(dynB, "Dynamics", "Dynamics on/off for this channel (Off = bypassed)", juce::Colour(0xffa43dff));
         close.setButtonText(juce::CharPointer_UTF8("\xC3\x97")); close.setTooltip("Close this panel"); close.fill = juce::Colours::transparentBlack; close.edge = juce::Colours::transparentBlack; close.fontSize = 13.0f; addAndMakeVisible(close);
-        for (auto* k : {&width, &send}) { k->setTooltip(k == &width ? "Stereo width: 0 = mono, 1 = unchanged, 2 = double (stereo strip)" : "Send to the FX bus (last bus). Fully left = off"); addAndMakeVisible(*k); }
-        width.setRange(0.0, 2.0, 0.01); width.setDoubleClickReturnValue(true, 1.0); send.setRange(-60.0, 0.0, 0.5); send.setDoubleClickReturnValue(true, -60.0);
+        for (auto* k : {&width, &send}) { k->setTooltip(k == &width ? "Stereo width: 0 = mono, 1 = full stereo (default, fully right like TotalMix)" : "Send to the FX bus (last bus). Fully left = off"); addAndMakeVisible(*k); }
+        width.setRange(0.0, 1.0, 0.01); width.setDoubleClickReturnValue(true, 1.0); send.setRange(-60.0, 0.0, 0.5); send.setDoubleClickReturnValue(true, -60.0);
         close.onClick = [this] { if (onClose) onClose(); };
         auto ch_ = [this] { onChanged ? onChanged() : void(); };
         stereo.onClick = [this] { if (onSplit) onSplit(); };
@@ -235,7 +235,7 @@ public:
         stereo.setToggleState(s.stereoLinked, juce::dontSendNotification); ms.setToggleState(s.midSide, juce::dontSendNotification);
         pl.setToggleState(s.phaseL, juce::dontSendNotification); pr.setToggleState(s.phaseR, juce::dontSendNotification);
         fxB.setToggleState(s.fx.eqOn, juce::dontSendNotification); dynB.setToggleState(s.fx.compOn, juce::dontSendNotification);
-        width.setValue(s.width, juce::dontSendNotification); send.setValue(s.fxSendDb, juce::dontSendNotification);
+        width.setValue(juce::jmin(1.0f, s.width), juce::dontSendNotification); send.setValue(s.fxSendDb, juce::dontSendNotification);
         width.setEnabled(s.stereoLinked); ms.setEnabled(s.stereoLinked); pr.setEnabled(s.stereoLinked); repaint();
     }
     void paint(juce::Graphics& g) override {
