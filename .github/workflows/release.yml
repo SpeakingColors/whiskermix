@@ -156,7 +156,7 @@ jobs:
         run: |
           notes="Test build. Free and open source. One zip with a folder per system: windows (installer .exe with uninstaller), macos (installer .pkg with Uninstall app), linux (app, Shimmer plugins, install.sh, uninstall.sh and the Digiface udev rule); each folder has INSTALL.txt and the PDF manual. SHA-256 sums are inside the zip.
 
-          Made for an RME Digiface USB with a Ferrofish Pulse 16 DX. Not tested on anything else; other RME interfaces may work for the audio part and may or may not for the hardware mixer. The hardware mixer code comes from USB captures and unit tests and has not yet run on real hardware. Works offline, no telemetry."
+          Made for an RME Digiface USB with a Ferrofish Pulse 16 DX. Not tested on anything else; other RME interfaces may work for the audio part and may or may not for the hardware mixer. The Pulse 16 page was confirmed controlling a real unit on Windows. The Digiface hardware mixer code comes from USB captures and unit tests and has not yet been confirmed on real hardware. The window is still a plain stand-in; the mockup design is not ported yet. Works offline, no telemetry."
           if gh release view "$TAG" >/dev/null 2>&1; then
             # one download only: drop older assets, upload the new zip, refresh the notes
             for a in $(gh release view "$TAG" --json assets --jq '.assets[].name'); do [ "$a" = "$ZIP" ] || gh release delete-asset "$TAG" "$a" -y; done

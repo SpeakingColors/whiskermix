@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(WhiskerMix VERSION 0.1.0 LANGUAGES C CXX)
+project(WhiskerMix VERSION 0.2.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 option(WM_WINDOWS_TEST "JUCE audio device instead of PipeWire/libusb (Windows and macOS builds, same UI)" OFF)
 option(WM_BUILD_PLUGINS "Build the standalone effect plugins (VST3 + Standalone)" OFF)
