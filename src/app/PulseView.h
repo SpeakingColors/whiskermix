@@ -75,11 +75,12 @@ public:
                 auto& s = o == 0 ? inGain[size_t(i)] : outLvl[size_t(i)];
                 s.setSliderStyle(juce::Slider::LinearVertical); s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 40, 16);
                 s.setColour(juce::Slider::thumbColourId, o == 0 ? col::teal : col::orange);
-                if (o == 0) { s.setRange(-8, 20, 1); s.setDoubleClickReturnValue(true, 20); s.setTooltip("Input reference level in dBu. Higher = more headroom (less gain)."); }
+                if (o == 0) { s.setRange(0, 28, 1); s.setDoubleClickReturnValue(true, 0); s.setTextValueSuffix(""); s.textFromValueFunction = [](double v) { return juce::String(20 - int(v)); }; s.setTooltip("Input gain, 0 to +28 dB. The number is the input level in dBu (20 minus gain). Fader up = more gain, like RemoteFish."); }
                 else { s.setRange(-8, 20, 1); s.setDoubleClickReturnValue(true, 20); s.setTooltip("Output reference level in dBu."); }
+                s.setValue(o == 0 ? 0 : 20, juce::dontSendNotification); s.updateText();
                 s.onValueChange = [this, i, o, &s] {
                     if (guard) return;
-                    if (o == 0) session.setInputGain(i + 1, wm::pulse16::dbuToInputGain(int(s.getValue())));
+                    if (o == 0) session.setInputGain(i + 1, int(s.getValue()));
                     else session.setOutputLevel(i + 1, wm::pulse16::dbuToOutputLevel(int(s.getValue())));
                 };
                 addAndMakeVisible(s);
@@ -95,8 +96,8 @@ public:
         // unit settings
         lab(brLab, "Display brightness");
         bright.setSliderStyle(juce::Slider::LinearHorizontal); bright.setTextBoxStyle(juce::Slider::TextBoxRight, false, 50, 20); bright.setRange(0, 15, 1);
-        bright.setColour(juce::Slider::thumbColourId, col::teal); bright.setTooltip("0 darkest, 15 brightest");
-        bright.onValueChange = [this] { if (!guard) session.sendBrightness(int(bright.getValue())); };
+        bright.setColour(juce::Slider::thumbColourId, col::teal); bright.setTooltip("Higher = brighter display (the unit takes 0 as brightest, so the value is flipped when sent)");
+        bright.onValueChange = [this] { if (!guard) session.sendBrightness(15 - int(bright.getValue())); };
         addAndMakeVisible(bright);
         keyClick.setButtonText("Key click"); keyClick.onClick = [this] { if (!guard) session.sendKeyClick(keyClick.getToggleState()); }; addAndMakeVisible(keyClick);
         keyClick.setToggleState(true, juce::dontSendNotification);
@@ -362,7 +363,7 @@ private:
             if (wm::pulse16::decodeHeadphoneChannel(uint8_t(st.hpChannelCode), first, stereo)) { hpCh.setSelectedId((first - 1) / 2 + 1, juce::dontSendNotification); hpMono.setToggleState(!stereo, juce::dontSendNotification); }
         }
         if (session.haveState()) {
-            for (int i = 0; i < 16; ++i) { inGain[size_t(i)].setValue(wm::pulse16::inputGainToDbu(st.inputGainDb[i]), juce::dontSendNotification); outLvl[size_t(i)].setValue(wm::pulse16::outputLevelToDbu(st.outputLevelDb[i]), juce::dontSendNotification); }
+            for (int i = 0; i < 16; ++i) { inGain[size_t(i)].setValue(st.inputGainDb[i], juce::dontSendNotification); outLvl[size_t(i)].setValue(wm::pulse16::outputLevelToDbu(st.outputLevelDb[i]), juce::dontSendNotification); }
         }
         guard = false; repaint();
     }

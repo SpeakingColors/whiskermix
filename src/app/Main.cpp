@@ -1,5 +1,6 @@
 // WhiskerMix app skeleton (JUCE). NOT built yet: needs JUCE and PipeWire. Wires the tested core together.
 // UI layer will load the mockup visuals later; this file only proves the plumbing.
+#include "BinaryData.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <thread>
 #include "../engine/AudioEngine.h"
@@ -19,6 +20,7 @@ public:
     // content = the app view; the window shows it inside the mockup frame (wood cheeks, logo, tabs), scaled with the aspect kept.
     MainWindow(wmui::AppView* app) : DocumentWindow("WhiskerMix", wmui::mock::outer, allButtons) {
         setUsingNativeTitleBar(true);
+        setIcon(juce::ImageFileFormat::loadFrom(BinaryData::whiskermixicon256_png, BinaryData::whiskermixicon256_pngSize));
         auto* host = new wmui::ScaledHost(*app);
         host->frame.resetSize = [this] { setContentComponentSize(wmui::mock::kW, wmui::mock::kH); };
         owned.reset(app); setContentOwned(host, true);
