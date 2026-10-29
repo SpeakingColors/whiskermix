@@ -43,4 +43,15 @@ int main() {
     r.addOutput(); r.addInput(); CHECK(r.routed(0, 1) && r.inputs() == 3 && r.outputs() == 3 && !r.routed(2, 2));
     std::puts("state/routing/undo: passed");
     return 0;
+    {   // stereo split / join keep the routing in step: duplicate a row, erase a row
+        RoutingMatrix r(3, 2);
+        r.set(0, 0, 1.0f); r.set(1, 1, -3.0f); r.set(2, 0, -6.0f);
+        r.duplicateInput(1);
+        CHECK(r.inputs() == 4);
+        CHECK(r.get(1, 1) == -3.0f && r.get(2, 1) == -3.0f && r.get(0, 0) == 1.0f && r.get(3, 0) == -6.0f);
+        r.eraseInput(2);
+        CHECK(r.inputs() == 3 && r.get(1, 1) == -3.0f && r.get(2, 0) == -6.0f);
+        Mixer m; m.addChannel(); m.state().channels[0].trim = true;
+        State b; CHECK(fromJson(toJson(m.state()), b) && b.channels[0].trim);
+    }
 }

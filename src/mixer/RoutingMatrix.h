@@ -28,6 +28,15 @@ public:
         }
         g_ = n; ++out_;
     }
+    // Stereo split / join keep the routing in step with the channel list: a new row right after `at` that copies row `at`,
+    // and removal of row `at` (the right-hand channel of a joined pair).
+    void duplicateInput(int at) {
+        std::vector<float> n(g_.begin(), g_.begin() + ptrdiff_t(size_t(at + 1) * size_t(out_)));
+        n.insert(n.end(), g_.begin() + ptrdiff_t(size_t(at) * size_t(out_)), g_.begin() + ptrdiff_t(size_t(at + 1) * size_t(out_)));
+        n.insert(n.end(), g_.begin() + ptrdiff_t(size_t(at + 1) * size_t(out_)), g_.end());
+        g_ = n; ++in_;
+    }
+    void eraseInput(int at) { g_.erase(g_.begin() + ptrdiff_t(size_t(at) * size_t(out_)), g_.begin() + ptrdiff_t(size_t(at + 1) * size_t(out_))); --in_; }
     // Grow or shrink, keeping existing routes (used after recalling a snapshot with a different channel count).
     void resize(int inputs, int outputs) {
         RoutingMatrix n(inputs, outputs);

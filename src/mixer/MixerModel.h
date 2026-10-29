@@ -25,6 +25,7 @@ struct Channel {
     bool midSide = false;       // M/S processing
     float fxSendDb = -60.0f;    // send to the FX bus; -60 = off
     bool cue = false;           // cue (headphone pre-listen)
+    bool trim = false;          // T button: the fader moves all routings (flag only; the Digiface submix mapping is not decoded yet)
     bool hidden = false;        // hidden in the mixer (Settings > Channel layout)
     int hwFirst = -1;           // Digiface hardware channel of this strip (0-based; stereo strips use hwFirst and hwFirst+1); -1 = not on the hardware
     bool playback = false;      // software playback strip (true) or hardware input (false)

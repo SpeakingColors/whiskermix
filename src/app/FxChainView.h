@@ -2,6 +2,7 @@
 // in engine/Chain.h. RULE: Off = bypass. An FX that is off shows idle meters ("off"), dimmed knobs, and the engine does not
 // run it at all. Included by MixerView.h (needs Meter and col::).
 #pragma once
+#include <deque>
 // (Included inside namespace wmui, after Meter and col:: are defined.)
 class FxChainPanel : public juce::Component, private juce::Timer {
 public:
@@ -23,25 +24,29 @@ public:
         rebuildKnobs(); startTimerHz(30);
     }
     void setChannel(int c) { ch = c; rebuildKnobs(); refresh(); }
+    // Mockup layout (214 x 366): title, type select + On/Off, display, IN/OUT meters, 2x2 knobs, chain buttons, note.
     void paint(juce::Graphics& g) override {
-        g.setColour(col::panel); g.fillRoundedRectangle(getLocalBounds().toFloat(), 6);
-        g.setColour(col::violet); g.setFont(13.0f);
-        if (ch >= 0 && ch < int(mx.state().channels.size())) g.drawText("FX  " + juce::String(mx.state().channels[size_t(ch)].name), 10, 6, getWidth() - 60, 20, juce::Justification::centredLeft);
-        g.setColour(col::dim); g.setFont(10.0f);
-        g.drawText("IN", meterIn.getX() - 6, meterIn.getY() - 14, 24, 12, juce::Justification::centred); g.drawText("OUT", meterOut.getX() - 8, meterOut.getY() - 14, 28, 12, juce::Justification::centred);
-        g.drawText(inTxt, meterIn.getX() - 8, meterIn.getBottom() + 2, 40, 12, juce::Justification::centred); g.drawText(outTxt, meterOut.getX() - 8, meterOut.getBottom() + 2, 40, 12, juce::Justification::centred);
-        if (kind == wm::engine::kMidSide) { g.setColour(col::dim); g.drawText("M/S works on a linked pair", 10, getHeight() - 76, getWidth() - 20, 14, juce::Justification::centred); }
+        g.setColour(juce::Colour(0xff262930)); g.fillRoundedRectangle(getLocalBounds().toFloat(), 6);
+        g.setColour(juce::Colour(0xff4a4e57)); g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), 6, 1.0f);
+        g.setColour(juce::Colour(0xffc0a9fe)); g.setFont(juce::Font(10.0f, juce::Font::bold));
+        if (ch >= 0 && ch < int(mx.state().channels.size())) g.drawText(juce::String(juce::CharPointer_UTF8("FX \xC2\xB7 ")) + juce::String(juce::CharPointer_UTF8(mx.state().channels[size_t(ch)].name.c_str())).toUpperCase(), 10, 8, getWidth() - 40, 14, juce::Justification::centredLeft);
+        // display: the live output level of this FX over time (flat and dim when it is off)
+        auto d = juce::Rectangle<float>(10, 56, 128, 96); g.setColour(juce::Colour(0xff14161a)); g.fillRoundedRectangle(d, 4);
+        bool on = isOn(kind); g.setColour(juce::Colour(0xff2c3036)); for (int i = 1; i < 4; ++i) g.drawHorizontalLine(int(d.getY() + d.getHeight() * float(i) / 4), d.getX() + 2, d.getRight() - 2);
+        juce::Path p; for (size_t i = 0; i < hist.size(); ++i) { float x = d.getX() + 2 + float(i) * (d.getWidth() - 4) / float(kHist - 1), y = d.getBottom() - 4 - (d.getHeight() - 8) * juce::jlimit(0.0f, 1.0f, (hist[i] + 60.0f) / 60.0f); if (i == 0) p.startNewSubPath(x, y); else p.lineTo(x, y); }
+        g.setColour((on ? juce::Colour(0xff01fcdc) : juce::Colour(0xff4a4e57))); g.strokePath(p, juce::PathStrokeType(1.5f));
+        if (!on) { g.setColour(juce::Colour(0xff6a6f7a)); g.setFont(10.0f); g.drawText("off", d, juce::Justification::centred); }
+        g.setColour(juce::Colour(0xffb9b6ae)); g.setFont(8.0f);
+        g.drawText(inTxt, meterIn.getX() - 6, meterIn.getBottom() + 2, 34, 10, juce::Justification::centred); g.drawText(outTxt, meterOut.getX() - 6, meterOut.getBottom() + 2, 34, 10, juce::Justification::centred);
+        g.drawText("IN", meterIn.getX(), meterIn.getY() - 11, 22, 10, juce::Justification::centred); g.drawText("OUT", meterOut.getX(), meterOut.getY() - 11, 22, 10, juce::Justification::centred);
+        g.setFont(9.0f); g.drawText(kind == wm::engine::kMidSide ? "M/S works on a stereo strip" : on ? "On: the FX runs" : "Off: bypassed, the sound passes untouched", 10, 338, getWidth() - 20, 12, juce::Justification::centredLeft);
     }
     void resized() override {
-        auto r = getLocalBounds().reduced(8); r.removeFromTop(24);
-        close.setBounds(getWidth() - 30, 6, 22, 20);
-        auto top = r.removeFromTop(26); typeBox.setBounds(top.removeFromLeft(top.getWidth() - 64)); onBtn.setBounds(top.reduced(2, 0));
-        r.removeFromTop(18);
-        auto mt = r.removeFromRight(70); meterIn.setBounds(mt.removeFromLeft(24).withTrimmedBottom(16)); mt.removeFromLeft(6); meterOut.setBounds(mt.removeFromLeft(24).withTrimmedBottom(16));
-        auto chipArea = r.removeFromBottom(64); r.removeFromBottom(4);
-        int cw = chipArea.getWidth() / 6; for (int i = 0; i < chips.size(); ++i) chips[i]->setBounds(chipArea.getX() + (i % 6) * cw, chipArea.getY() + (i / 6) * 30, cw - 3, 26);
-        int kw = r.getWidth() / 2, kh = r.getHeight() / 2;
-        for (int i = 0; i < 4; ++i) { auto cell = juce::Rectangle<int>(r.getX() + (i % 2) * kw, r.getY() + (i / 2) * kh, kw, kh); labels[i].setBounds(cell.removeFromBottom(14)); knobs[i].setBounds(cell); }
+        close.setBounds(getWidth() - 26, 5, 18, 18);
+        typeBox.setBounds(10, 28, getWidth() - 62, 22); onBtn.setBounds(getWidth() - 46, 28, 37, 22);
+        meterIn.setBounds(getWidth() - 70, 66, 22, 72); meterOut.setBounds(getWidth() - 45, 66, 22, 72);
+        for (int i = 0; i < 4; ++i) { auto cell = juce::Rectangle<int>(10 + (i % 2) * 96, 158 + (i / 2) * 58, 96, 55); labels[i].setBounds(cell.removeFromBottom(12)); knobs[i].setBounds(cell); }
+        for (int i = 0; i < chips.size(); ++i) chips[i]->setBounds(10 + (i % 4) * 50, 278 + (i / 4) * 19, 48, 16);
     }
 private:
     static std::vector<int> order() { std::vector<int> v = {kEq, kDyn}; for (int k = 0; k < wm::engine::kFxKinds; ++k) v.push_back(k); return v; }
@@ -81,10 +86,12 @@ private:
         else if (on && kind == kEq) { dIn = dOut = eng.inputPeakDb(ch); }
         else if (on && kind == kDyn) { dIn = eng.inputPeakDb(ch); dOut = dIn + eng.gainReductionDb(ch) + (cur() ? cur()->fx.makeupDb : 0.0f); }
         if (on && !(kind == wm::engine::kMidSide)) { inTxt = juce::String(dIn, 1); outTxt = juce::String(dOut, 1); }
+        hist.push_back(on ? dOut : -60.0f); while (int(hist.size()) > kHist) hist.pop_front();
         meterIn.setDb(dIn); meterOut.setDb(dOut); meterIn.setAlpha(on ? 1.0f : 0.3f); meterOut.setAlpha(on ? 1.0f : 0.3f); repaint();
         for (int i = 0; i < chips.size(); ++i) { bool o = isOn(ids[size_t(i)]); chips[i]->setColour(juce::TextButton::buttonColourId, o ? col::teal.darker(0.4f) : col::panel); }
         onBtn.setButtonText(on ? "On" : "Off"); for (int i = 0; i < 4; ++i) knobs[i].setAlpha(on ? 1.0f : 0.45f);
     }
+    static constexpr int kHist = 64; std::deque<float> hist;
     wm::mixer::Mixer& mx; wm::engine::AudioEngine& eng; int ch = 0, kind = kEq; std::vector<int> ids;
     juce::ComboBox typeBox; juce::TextButton onBtn, close; Meter meterIn, meterOut; juce::Slider knobs[4]; juce::Label labels[4];
     juce::OwnedArray<juce::TextButton> chips; juce::String inTxt = "off", outTxt = "off";
