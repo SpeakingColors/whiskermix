@@ -51,8 +51,8 @@ inline std::string toJson(const State& st) {
     for (size_t i = 0; i < st.buses.size(); ++i) {
         char b[320];
         const auto& bu = st.buses[i];
-        std::snprintf(b, sizeof b, "%s{\"name\":\"%s\",\"volume\":%.3f,\"dim\":%d,\"dimDb\":%.1f,\"mono\":%d,\"bmute\":%d,\"crm\":%d,\"bpan\":%.3f,\"blink\":%d,\"bsolo\":%d,\"rvOn\":%d,\"dlOn\":%d,\"rvType\":%d,\"hw\":%d,\"st\":%d", i ? "," : "",
-                      jsonEscape(bu.name).c_str(), bu.volumeDb, bu.dim, double(bu.dimDb), bu.mono, bu.mute, bu.controlRoom, double(bu.pan), bu.link, bu.solo, bu.reverbOn, bu.delayOn, int(bu.reverb.type), bu.hwFirst, bu.stereo);
+        std::snprintf(b, sizeof b, "%s{\"name\":\"%s\",\"volume\":%.3f,\"dim\":%d,\"dimDb\":%.1f,\"mono\":%d,\"bmute\":%d,\"crm\":%d,\"crr\":%d,\"bpan\":%.3f,\"blink\":%d,\"bsolo\":%d,\"rvOn\":%d,\"dlOn\":%d,\"rvType\":%d,\"hw\":%d,\"st\":%d", i ? "," : "",
+                      jsonEscape(bu.name).c_str(), bu.volumeDb, bu.dim, double(bu.dimDb), bu.mono, bu.mute, bu.controlRoom, bu.crRole, double(bu.pan), bu.link, bu.solo, bu.reverbOn, bu.delayOn, int(bu.reverb.type), bu.hwFirst, bu.stereo);
         o += b;
         char t[64];
 #define X(k) std::snprintf(t, sizeof t, ",\"bx_" #k "\":%.4g", double(bu.k)); o += t;
@@ -131,6 +131,7 @@ inline bool fromJson(const std::string& s, State& st) {
         if (detail::field(s, p, e, "blink", v)) b.link = v == "1";
         if (detail::field(s, p, e, "bsolo", v)) b.solo = v == "1";
         if (detail::field(s, p, e, "crm", v)) { b.controlRoom = v == "1"; sawCr = true; }
+        if (detail::field(s, p, e, "crr", v)) b.crRole = std::atoi(v.c_str());
         if (detail::field(s, p, e, "rvOn", v)) b.reverbOn = v == "1";
         if (detail::field(s, p, e, "dlOn", v)) b.delayOn = v == "1";
         if (detail::field(s, p, e, "rvType", v)) b.reverb.type = wm::engine::ReverbType(std::atoi(v.c_str()));
@@ -141,7 +142,7 @@ inline bool fromJson(const std::string& s, State& st) {
 #undef X
         n.buses.push_back(b); p = e;
     }
-    if (!sawCr) for (size_t i = 0; i < n.buses.size() && i < 2; ++i) n.buses[i].controlRoom = true;
+    if (!sawCr) for (size_t i = 0; i < n.buses.size() && i < 2; ++i) { n.buses[i].controlRoom = true; n.buses[i].crRole = int(i) + 1; }
     st = n;
     return true;
 }

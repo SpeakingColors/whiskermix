@@ -163,7 +163,8 @@ public:
             }
         }
         int crActive = -1, crCount = 0;   // control room outputs play one at a time (Speaker A/B): the soloed one, else the first
-        for (size_t b = 0; b < nb; ++b) if (st.buses[b].controlRoom) { ++crCount; if (crActive < 0) crActive = int(b); }
+        for (size_t b = 0; b < nb; ++b) if (st.buses[b].controlRoom) ++crCount;
+        crActive = wm::mixer::crMainIndex(st);
         if (crCount > 1) for (size_t b = 0; b < nb; ++b) if (st.buses[b].controlRoom && st.buses[b].solo) { crActive = int(b); break; }
         for (size_t b = 0; b < nb; ++b) {
             const auto& bus = st.buses[b];

@@ -347,7 +347,7 @@ public:
     void paint(juce::Graphics&) override {}
     void resized() override {
         auto r = getLocalBounds(); int sideW = 150; auto sb = r.removeFromRight(sideW); r.removeFromRight(8);
-        sidebar.setBounds(sb.withHeight(juce::jmax(575, getHeight()))); layoutSidebar();
+        sidebar.setBounds(sb.withHeight(juce::jmax(597, getHeight()))); layoutSidebar();
         areaW = r.getWidth(); body.setSize(areaW, getHeight()); relayoutRows();
     }
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& w) override { scrollBy(w.deltaY); }
@@ -376,7 +376,12 @@ private:
             s->showParts(showFx, showTrim, showNames);
         };
         for (int i = 0; i < int(mx.state().channels.size()); ++i) { auto& c = mx.state().channels[size_t(i)]; if (c.hidden) continue; add(c.playback ? rPb : rIn, false, i); }
-        for (int b = int(mx.state().buses.size()) - 1; b >= 0; --b) if (mx.state().buses[size_t(b)].controlRoom) add(rCr, true, b);   // control room: as many as the layout has, last one first like the mockup
+        {   // control room: as many as the layout has; Main out is the last (right-most) like the mockup, Main out B before it
+            const int mi = wm::mixer::crMainIndex(mx.state()), ai = wm::mixer::crAltIndex(mx.state());
+            for (int b = int(mx.state().buses.size()) - 1; b >= 0; --b) if (mx.state().buses[size_t(b)].controlRoom && b != mi && b != ai) add(rCr, true, b);
+            if (ai >= 0) add(rCr, true, ai);
+            if (mi >= 0) add(rCr, true, mi);
+        }
         for (int b = 0; b < int(mx.state().buses.size()); ++b) if (!mx.state().buses[size_t(b)].controlRoom) add(rOut, true, b);
         selectedChannel = juce::jlimit(0, juce::jmax(0, int(mx.state().channels.size()) - 1), selectedChannel);
         for (auto& s : strips) s->selected = !s->isBus && s->idx == selectedChannel;
@@ -384,9 +389,9 @@ private:
     }
     int crCount() { int n = 0; for (auto& b : mx.state().buses) if (b.controlRoom) ++n; return n; }
     template <class F> void eachCr(F f) { for (auto& b : mx.state().buses) if (b.controlRoom) f(b); }
-    wm::mixer::Bus* cr0() { for (auto& b : mx.state().buses) if (b.controlRoom) return &b; return nullptr; }
+    wm::mixer::Bus* cr0() { int i = wm::mixer::crMainIndex(mx.state()); return i >= 0 ? &mx.state().buses[size_t(i)] : nullptr; }
     void refreshStrips() { for (auto& s : strips) s->refresh(); settings.sync(); syncCr(); }
-    void syncCr() { auto* b = cr0(); bool has = b != nullptr; for (auto* x : {&crDim, &crMono}) x->setVisible(has); spkB.setVisible(crCount() > 1); if (crCount() > 1) { int c2 = 0; for (auto& bb : mx.state().buses) if (bb.controlRoom && ++c2 == 2) spkB.setToggleState(bb.solo, juce::dontSendNotification); } dimKnob.setVisible(has); sidebar.showCr = has; if (has) { crDim.setToggleState(b->dim, juce::dontSendNotification); crMono.setToggleState(b->mono, juce::dontSendNotification); dimKnob.setValue(b->dimDb, juce::dontSendNotification); } sidebar.repaint(); }
+    void syncCr() { auto* b = cr0(); bool has = b != nullptr; for (auto* x : {&crDim, &crMono}) x->setVisible(has); spkB.setVisible(wm::mixer::crAltIndex(mx.state()) >= 0); { int ai = wm::mixer::crAltIndex(mx.state()); if (ai >= 0) spkB.setToggleState(mx.state().buses[size_t(ai)].solo, juce::dontSendNotification); } dimKnob.setVisible(has); sidebar.showCr = has; if (has) { crDim.setToggleState(b->dim, juce::dontSendNotification); crMono.setToggleState(b->mono, juce::dontSendNotification); dimKnob.setValue(b->dimDb, juce::dontSendNotification); } sidebar.repaint(); }
     void split(int c) {
         if (c < 0 || c >= int(mx.state().channels.size())) return;
         if (mx.state().channels[size_t(c)].stereoLinked) { if (mx.splitStereo(c)) rt.duplicateInput(c); }
@@ -444,8 +449,9 @@ private:
         for (auto* x : {&crDim, &crMono}) { x->fillOn = juce::Colour(0xffff9000); x->textOn = juce::Colours::black; x->fontSize = 10.0f; }
         dimKnob.setRange(-40.0, -3.0, 1.0); dimKnob.setDoubleClickReturnValue(true, -20.0); dimKnob.setTooltip("How far dim lowers the output, in dB (default -20; double-click resets)"); sidebar.addAndMakeVisible(dimKnob);
         dimKnob.onValueChange = [this] { float d = float(dimKnob.getValue()); eachCr([d](wm::mixer::Bus& b) { b.dimDb = d; }); sidebar.repaint(); };
-        b(spkB, "speaker B", "Switch the control room to the second output (only one plays at a time); click again for the first", [this] { int a = -1, b2 = -1; for (size_t i = 0; i < mx.state().buses.size(); ++i) if (mx.state().buses[i].controlRoom) { (a < 0 ? a : b2) = (a < 0 ? int(i) : (b2 < 0 ? int(i) : b2)); }
-            if (b2 < 0) return; bool on = !mx.state().buses[size_t(b2)].solo; eachCr([](wm::mixer::Bus& x) { x.solo = false; }); mx.state().buses[size_t(on ? b2 : a)].solo = true; refreshStrips(); });
+        b(spkB, "speaker B", "Switch the control room to the second output (only one plays at a time); click again for the first", [this] { int a = wm::mixer::crMainIndex(mx.state()), b2 = wm::mixer::crAltIndex(mx.state());
+            if (b2 < 0 || a < 0) return; bool on = !mx.state().buses[size_t(b2)].solo; eachCr([](wm::mixer::Bus& x) { x.solo = false; }); mx.state().buses[size_t(on ? b2 : a)].solo = true; refreshStrips(); });
+        b(assignB, juce::CharPointer_UTF8("Assign  \xE2\x96\xBE"), "Choose which outputs are Main out and Main out B, and which hardware channels they use", [this] { showAssignMenu(); });
         spkB.fillOn = juce::Colour(0xffff9000); spkB.textOn = juce::Colours::black; spkB.fontSize = 10.0f;
         auto vo = [this](MockButton& x, const char* t, const char* tip) { x.setButtonText(t); x.setTooltip(tip); x.fill = juce::Colour(0xff3308af); x.edge = juce::Colour(0xff3308af); x.textCol = juce::Colours::white; x.fillOn = juce::Colours::white; x.textOn = juce::Colour(0xff3308af); x.radius = 8.0f; x.fontSize = 8.0f; x.bold = true; sidebar.addAndMakeVisible(x); };
         vo(modeSub, "SUBMIX", "Routing mode SUBMIX: each output has its own mix (not wired to the engine yet)"); vo(modeFree, "FREE", "Routing mode FREE: routes are set freely in the matrix (not wired to the engine yet)");
@@ -472,11 +478,48 @@ private:
         muteAll.setBounds(40, 62, 22, 22); soloAll.setBounds(88, 62, 22, 22);
         modeSub.setBounds(14, 126, 58, 16); modeFree.setBounds(78, 126, 58, 16); meterPost.setBounds(14, 158, 58, 16); meterRms.setBounds(78, 158, 58, 16);
         showFxB.setBounds(14, 190, 58, 16); showTrimB.setBounds(78, 190, 58, 16); show2Row.setBounds(14, 210, 58, 16); showNamesB.setBounds(78, 210, 58, 16);
-        const int o = juce::jmax(0, sidebar.getHeight() - 575);   // Store, control room and the menus sit at the bottom, beside the control room strips
+        const int o = juce::jmax(0, sidebar.getHeight() - 597);   // Store, control room and the menus sit at the bottom, beside the control room strips
         sidebar.crOff = o;
         snaps.setBounds(10, 260, 130, 84); storeB.setBounds(6, 348 + o, 138, 20);
-        crDim.setBounds(6, 398 + o, 66, 18); crMono.setBounds(78, 398 + o, 66, 18); dimKnob.setBounds(14, 422 + o, 30, 30); spkB.setBounds(6, 456 + o, 138, 18);
-        groupsB.setBounds(6, 484 + o, 138, 18); presetsB.setBounds(6, 506 + o, 138, 18); reverbB.setBounds(6, 528 + o, 138, 18); remoteB.setBounds(6, 550 + o, 138, 18);
+        crDim.setBounds(6, 398 + o, 66, 18); crMono.setBounds(78, 398 + o, 66, 18); dimKnob.setBounds(14, 422 + o, 30, 30); spkB.setBounds(6, 456 + o, 138, 18); assignB.setBounds(6, 478 + o, 138, 18);
+        groupsB.setBounds(6, 506 + o, 138, 18); presetsB.setBounds(6, 528 + o, 138, 18); reverbB.setBounds(6, 550 + o, 138, 18); remoteB.setBounds(6, 572 + o, 138, 18);
+    }
+    static juce::String hwName(int hw, bool stereo) {
+        if (hw >= 32) return stereo ? "PH 33/34" : "PH " + juce::String(hw + 1);
+        return "ADAT " + juce::String(hw + 1) + (stereo ? "/" + juce::String(hw + 2) : juce::String());
+    }
+    // Assign dropdown: which outputs are Main out and Main out B (control room), and which hardware channels they play on.
+    void showAssignMenu() {
+        auto& bs = mx.state().buses; juce::PopupMenu m, mainM, altM, chM;
+        const int mi = wm::mixer::crMainIndex(mx.state()), ai = wm::mixer::crAltIndex(mx.state());
+        for (size_t i = 0; i < bs.size(); ++i) {
+            const juce::String t = juce::String(bs[i].name) + "   (" + hwName(bs[i].hwFirst, bs[i].stereo) + ")";
+            mainM.addItem(100 + int(i), t, true, int(i) == mi);
+            altM.addItem(200 + int(i), t, true, int(i) == ai);
+        }
+        altM.addSeparator(); altM.addItem(299, "None (only one master output)", true, ai < 0);
+        m.addSubMenu("Main out", mainM); m.addSubMenu("Main out B", altM);
+        m.addSeparator();
+        for (int role = 1; role <= 2; ++role) {
+            const int bi = role == 1 ? mi : ai; if (bi < 0) continue;
+            juce::PopupMenu cm; const bool st = bs[size_t(bi)].stereo;
+            for (int hw = 0; hw < 16; hw += st ? 2 : 1) cm.addItem(1000 * role + hw + 1, hwName(hw, st), true, bs[size_t(bi)].hwFirst == hw);
+            cm.addItem(1000 * role + 33, hwName(32, st), true, bs[size_t(bi)].hwFirst == 32);
+            m.addSubMenu(juce::String(role == 1 ? "Main out" : "Main out B") + " channels: " + hwName(bs[size_t(bi)].hwFirst, st), cm);
+        }
+        m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&assignB), [this, safe = juce::Component::SafePointer<MockMixerView>(this)](int r) {
+            if (!safe || r <= 0) return;
+            auto& b = mx.state().buses; const int mi2 = wm::mixer::crMainIndex(mx.state()), ai2 = wm::mixer::crAltIndex(mx.state());
+            auto setRole = [&](int role, int idx) {   // idx -1 = none
+                int old = role == 1 ? mi2 : ai2;
+                if (old >= 0 && old != idx) { b[size_t(old)].crRole = 0; b[size_t(old)].controlRoom = false; b[size_t(old)].solo = false; }
+                if (idx >= 0) { for (auto& x : b) if (&x != &b[size_t(idx)] && x.controlRoom && x.crRole == role) x.crRole = 0; b[size_t(idx)].controlRoom = true; b[size_t(idx)].crRole = role; }
+            };
+            if (r >= 100 && r < 200) { int i = r - 100; if (i == ai2) setRole(2, -1); setRole(1, i); }
+            else if (r >= 200 && r < 300) { int i = r - 200; if (r == 299) setRole(2, -1); else { if (i == mi2) return; setRole(2, i); } }
+            else { int role = r / 1000, hw = r % 1000 - 1; int bi = role == 1 ? mi2 : ai2; if (bi >= 0) b[size_t(bi)].hwFirst = hw; }
+            refreshAll(); if (onStructure) onStructure();
+        });
     }
     struct Side : juce::Component {
         bool showCr = true; int crOff = 0;
@@ -503,7 +546,7 @@ private:
     wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; wm::engine::AudioEngine& eng;
     MockRow rIn, rPb, rOut, rCr; MockSettings settings; MockFxPanel fxPanel;
     std::vector<std::unique_ptr<MockStrip>> strips, stripsOwned;
-    Side sidebar; juce::Label devLabel; MockButton spkB, modeSub, modeFree, meterPost, meterRms, show2Row, groupsB, presetsB, remoteB; bool routeFree = false, meterIsRms = false, twoRow = false; MockButton undoB, redoB, muteAll, soloAll, showFxB, showTrimB, showNamesB, storeB, reverbB, crDim, crMono; MockKnob dimKnob; juce::Component body; juce::ListBox snaps; SnapModel snapModel; std::vector<std::string> snapNames;
+    Side sidebar; juce::Label devLabel; MockButton spkB, assignB, modeSub, modeFree, meterPost, meterRms, show2Row, groupsB, presetsB, remoteB; bool routeFree = false, meterIsRms = false, twoRow = false; MockButton undoB, redoB, muteAll, soloAll, showFxB, showTrimB, showNamesB, storeB, reverbB, crDim, crMono; MockKnob dimKnob; juce::Component body; juce::ListBox snaps; SnapModel snapModel; std::vector<std::string> snapNames;
     bool fxOpen_ = false, panelOpen_ = false, showFx = true, showTrim = true, showNames = true; int areaW = 816, settingsX = 0;
 };
 }  // namespace wmui

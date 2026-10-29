@@ -89,7 +89,7 @@ inline Built buildFromLayout(const std::vector<StripDef>& l) {
     Built b(in + pb, out + cr);
     b.inputs = in; b.playbacks = pb; b.outputs = out; b.controlRoom = cr;
     int c = 0, u = 0;
-    auto busStrips = [&](Row r) { for (const auto& s : l) if (s.row == r) { auto& bus = b.mixer.state().buses[size_t(u)]; bus.name = s.name; bus.volumeDb = s.gainDb <= kNoRoute ? -120.0f : s.gainDb; bus.hwFirst = s.hw; bus.stereo = s.stereo; bus.controlRoom = r == Row::ControlRoom; ++u; } };
+    auto busStrips = [&](Row r) { for (const auto& s : l) if (s.row == r) { auto& bus = b.mixer.state().buses[size_t(u)]; bus.name = s.name; bus.volumeDb = s.gainDb <= kNoRoute ? -120.0f : s.gainDb; bus.hwFirst = s.hw; bus.stereo = s.stereo; bus.controlRoom = r == Row::ControlRoom; bus.crRole = (r == Row::ControlRoom) ? (u == 0 ? 1 : u == 1 ? 2 : 0) : 0; ++u; } };
     busStrips(Row::ControlRoom); busStrips(Row::HardwareOutput);
     for (const auto& s : l) {
         if (s.row == Row::HardwareInput || s.row == Row::SoftwarePlayback) {

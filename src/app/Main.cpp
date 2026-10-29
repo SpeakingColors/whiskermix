@@ -61,7 +61,17 @@ public:
         auto* view = new wmui::AppView(*mixer, *routing, *engine);
         // Digiface hardware mixer: bus 0 = Main (control room), bus 1 = Speaker B (iLoud Micro).
         digiface = std::make_unique<wmui::DigifaceLink>(*mixer, 0, (mixer->state().buses.size() >= 2 && mixer->state().buses[1].controlRoom) ? 1 : -1);
+#ifdef WM_JUCE_AUDIO
+        // Windows/macOS test build: no USB control, but say what is really there (is an RME audio device listed?)
+        view->digifaceStatus = [this] {
+            static bool seen = false; static juce::uint32 last = 0; const auto now = juce::Time::getMillisecondCounter();
+            if (last == 0 || now - last > 3000) { last = now; seen = false;
+            for (auto* t : adm.getAvailableDeviceTypes()) { t->scanForDevices(); for (auto& n : t->getDeviceNames(false)) if (n.containsIgnoreCase("digiface") || n.containsIgnoreCase("madiface") || n.containsIgnoreCase("rme")) seen = true; } }
+            return std::string(seen ? "Digiface USB found (audio only)" : "Digiface USB not found");
+        };
+#else
         view->digifaceStatus = [this] { return digiface->status(); };
+#endif
 #ifdef WM_JUCE_AUDIO
         view->audioDevices = [this] {
             std::vector<wmui::MockRoutingView::Dev> v;

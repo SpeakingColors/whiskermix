@@ -44,6 +44,7 @@ struct Bus {
     bool link = false;          // control room: moving one volume moves the linked ones by the same amount
     bool solo = false;          // control room: only this output plays (Speaker A/B switch); none set = the first one
     bool controlRoom = false;   // belongs to the control room (monitor outputs); the layout decides how many there are
+    int crRole = 0;             // control room: 1 = Main out, 2 = Main out B (Speaker B), 0 = other
     int hwFirst = -1;           // Digiface hardware output (0-based); -1 = software only
     bool stereo = true;
     // Bus effects (use a dedicated bus as an FX return): reverb/shimmer reverb and shimmer delay.
@@ -152,5 +153,18 @@ private:
     State state_;
     std::map<std::string, State> snaps_;
 };
+
+// Control room roles: Main out and Main out B (index into buses, -1 = none). Without explicit roles the first two control room buses are used.
+template <class S> inline int crMainIndex(const S& st) {
+    for (size_t i = 0; i < st.buses.size(); ++i) if (st.buses[i].controlRoom && st.buses[i].crRole == 1) return int(i);
+    for (size_t i = 0; i < st.buses.size(); ++i) if (st.buses[i].controlRoom && st.buses[i].crRole == 0) return int(i);
+    return -1;
+}
+template <class S> inline int crAltIndex(const S& st) {
+    for (size_t i = 0; i < st.buses.size(); ++i) if (st.buses[i].controlRoom && st.buses[i].crRole == 2) return int(i);
+    const int m = crMainIndex(st);
+    for (size_t i = 0; i < st.buses.size(); ++i) if (st.buses[i].controlRoom && st.buses[i].crRole == 0 && int(i) != m) return int(i);
+    return -1;
+}
 
 }  // namespace wm::mixer
