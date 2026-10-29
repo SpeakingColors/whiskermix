@@ -4,7 +4,7 @@
 
 A TotalMix-style mixer and studio hub for Linux, by Studio 87. Made for one setup: an **RME Digiface USB** with a **Ferrofish Pulse 16 DX** behind it on ADAT. Mixer, routing, MIDI hub, Pulse 16 control page, built-in FX. Free and open source. Windows and macOS builds exist for the audio side.
 
-<p align="center"><img src="docs/screenshot.png" alt="WhiskerMix editor" width="900"><br><sub>Screenshot of the interactive mockup in docs/mockups.</sub></p>
+<p align="center"><img src="docs/screenshot.png" alt="WhiskerMix editor" width="900"><br><sub>The real window, rendered from the app. It matches the approved mockup in docs/mockups.</sub></p>
 
 **Manual:** [PDF, opens in the browser](https://github.com/SpeakingColors/whiskermix/blob/main/docs/whiskermix-manual.pdf)
 
