@@ -49,10 +49,10 @@ inline std::string toJson(const State& st) {
     }
     o += "],\"buses\":[";
     for (size_t i = 0; i < st.buses.size(); ++i) {
-        char b[224];
+        char b[320];
         const auto& bu = st.buses[i];
-        std::snprintf(b, sizeof b, "%s{\"name\":\"%s\",\"volume\":%.3f,\"dim\":%d,\"rvOn\":%d,\"dlOn\":%d,\"rvType\":%d,\"hw\":%d,\"st\":%d", i ? "," : "",
-                      jsonEscape(bu.name).c_str(), bu.volumeDb, bu.dim, bu.reverbOn, bu.delayOn, int(bu.reverb.type), bu.hwFirst, bu.stereo);
+        std::snprintf(b, sizeof b, "%s{\"name\":\"%s\",\"volume\":%.3f,\"dim\":%d,\"dimDb\":%.1f,\"mono\":%d,\"bmute\":%d,\"crm\":%d,\"bpan\":%.3f,\"blink\":%d,\"bsolo\":%d,\"rvOn\":%d,\"dlOn\":%d,\"rvType\":%d,\"hw\":%d,\"st\":%d", i ? "," : "",
+                      jsonEscape(bu.name).c_str(), bu.volumeDb, bu.dim, double(bu.dimDb), bu.mono, bu.mute, bu.controlRoom, double(bu.pan), bu.link, bu.solo, bu.reverbOn, bu.delayOn, int(bu.reverb.type), bu.hwFirst, bu.stereo);
         o += b;
         char t[64];
 #define X(k) std::snprintf(t, sizeof t, ",\"bx_" #k "\":%.4g", double(bu.k)); o += t;
@@ -117,12 +117,20 @@ inline bool fromJson(const std::string& s, State& st) {
         }
         n.channels.push_back(c); p = e;
     }
+    bool sawCr = false;   // workspaces saved before the flag existed: the first two buses were the control room
     for (size_t p = s.find('{', bs + 9); p != std::string::npos; p = s.find('{', p + 1)) {
         size_t e = s.find('}', p);
         Bus b; std::string v;
         if (detail::field(s, p, e, "name", v)) b.name = v;
         if (detail::field(s, p, e, "volume", v)) b.volumeDb = std::strtof(v.c_str(), nullptr);
         if (detail::field(s, p, e, "dim", v)) b.dim = v == "1";
+        if (detail::field(s, p, e, "dimDb", v)) b.dimDb = std::strtof(v.c_str(), nullptr);
+        if (detail::field(s, p, e, "mono", v)) b.mono = v == "1";
+        if (detail::field(s, p, e, "bmute", v)) b.mute = v == "1";
+        if (detail::field(s, p, e, "bpan", v)) b.pan = std::strtof(v.c_str(), nullptr);
+        if (detail::field(s, p, e, "blink", v)) b.link = v == "1";
+        if (detail::field(s, p, e, "bsolo", v)) b.solo = v == "1";
+        if (detail::field(s, p, e, "crm", v)) { b.controlRoom = v == "1"; sawCr = true; }
         if (detail::field(s, p, e, "rvOn", v)) b.reverbOn = v == "1";
         if (detail::field(s, p, e, "dlOn", v)) b.delayOn = v == "1";
         if (detail::field(s, p, e, "rvType", v)) b.reverb.type = wm::engine::ReverbType(std::atoi(v.c_str()));
@@ -133,6 +141,7 @@ inline bool fromJson(const std::string& s, State& st) {
 #undef X
         n.buses.push_back(b); p = e;
     }
+    if (!sawCr) for (size_t i = 0; i < n.buses.size() && i < 2; ++i) n.buses[i].controlRoom = true;
     st = n;
     return true;
 }

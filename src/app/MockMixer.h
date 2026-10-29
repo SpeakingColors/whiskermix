@@ -28,6 +28,17 @@ inline float dbFromTop(float t) {
 inline juce::String dbText(float db, int dp = 1) { return db <= -59.9f ? juce::String(juce::CharPointer_UTF8("-\xE2\x88\x9E")) : juce::String(db, dp); }
 }  // namespace mx_
 
+// Wrench drawn as a vector path (no emoji font needed): open-jaw head at the top right, handle to the bottom left.
+inline void drawWrench(juce::Graphics& g, juce::Rectangle<float> r, juce::Colour c) {
+    const float s = juce::jmin(r.getWidth(), r.getHeight()); auto ctr = r.getCentre(); g.setColour(c);
+    juce::Path handle; handle.startNewSubPath(ctr.x - s * 0.38f, ctr.y + s * 0.38f); handle.lineTo(ctr.x + s * 0.12f, ctr.y - s * 0.12f);
+    g.strokePath(handle, juce::PathStrokeType(s * 0.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    juce::Path head; head.addEllipse(ctr.x + s * 0.02f, ctr.y - s * 0.48f, s * 0.46f, s * 0.46f);
+    juce::Path jaw; jaw.addRectangle(0.0f, -s * 0.08f, s * 0.3f, s * 0.16f);
+    g.fillPath(head); g.setColour(juce::Colour(0xff3a3e45));
+    g.fillPath(jaw, juce::AffineTransform::rotation(-0.785f).translated(ctr.x + s * 0.42f, ctr.y - s * 0.4f));
+}
+
 // Round knob drawn like the mockup's (dark disc, yellow indicator).
 class MockKnob : public juce::Slider {
 public:
@@ -82,15 +93,17 @@ private:
 class MockStrip : public juce::Component {
 public:
     static constexpr int kW = 74;
+    std::function<void(MockStrip*, float)> onGain;   // bus fader moved by this many dB (for linked outputs)
+    std::function<void(MockStrip*)> onLinkToggle;
     std::function<void(MockStrip*)> onSelect, onWrench, onFx, onSplit, onRoute, onLook;
     bool isBus, selected = false; int idx;
     MockStrip(wm::mixer::Mixer& m, bool asBus, int i) : mx(m), isBus(asBus), idx(i) {
         auto tog = [this](MockButton& b, const juce::String& t, const char* tip) { b.setButtonText(t); b.setTooltip(tip); b.fill = mx_::pill; b.edge = mx_::pillEdge; b.textCol = mx_::mute; b.bold = true; b.fontSize = 8.0f; b.radius = 3.0f; addAndMakeVisible(b); };
-        tog(m_, "M", "Mute"); tog(s_, "S", "Solo"); tog(dim_, "DIM", "Lower this output by 20 dB");
+        tog(m_, "M", "Mute"); tog(s_, "S", "Solo"); tog(dim_, "LINK", "Link the control room volumes: moving one moves the others by the same amount");
         for (auto* b : {&m_, &s_}) { b->fontSize = 9.0f; b->radius = 9.0f; }
-        m_.fillOn = juce::Colour(0xffff1383); m_.textOn = juce::Colours::white; s_.fillOn = mx_::yel; s_.textOn = mx_::mute.darker(5.0f); dim_.fillOn = juce::Colour(0xffff9000); dim_.textOn = juce::Colours::black;
+        m_.fillOn = juce::Colour(0xffff1383); m_.textOn = juce::Colours::white; s_.fillOn = mx_::yel; s_.textOn = mx_::mute.darker(5.0f); dim_.fillOn = juce::Colour(0xffff9000); dim_.textOn = juce::Colours::black; dim_.fontSize = 7.0f;
         tog(t_, "T", "Trim: the fader moves all routings of this channel (stored; the Digiface submix mapping is not decoded yet)"); t_.circle = true; t_.fillOn = juce::Colour(0xff01fcdc); t_.textOn = juce::Colours::black;
-        tog(w_, juce::CharPointer_UTF8("\xF0\x9F\x94\xA7"), "Channel settings (stereo, width, M/S, phase, EQ, dynamics, send)"); tog(fx_, "FX", "Open this channel's FX panel"); tog(d_, "D", "Dynamics on/off (Off = bypassed, the sound passes untouched)");
+        tog(w_, "", "Channel settings (stereo, width, M/S, phase, EQ, dynamics, send)"); w_.icon = drawWrench; tog(fx_, "FX", "Open this channel's FX panel"); tog(d_, "D", "Dynamics on/off (Off = bypassed, the sound passes untouched)");
         for (auto* b : {&w_, &fx_, &d_}) { b->fillOn = juce::Colour(0xffa43dff); b->textOn = juce::Colours::white; }
         d_.fillOn = juce::Colour(0xffa43dff); fx_.fillOn = juce::Colour(0xff01fcdc); fx_.textOn = juce::Colours::black; w_.fillOn = juce::Colour(0xffff9000); w_.textOn = juce::Colours::black;
         tog(st_, "ST", "Stereo: split a stereo strip into two mono strips, or join this mono strip with the next one"); st_.radius = 3.0f; st_.fillOn = juce::Colour(0xffff9000); st_.textOn = juce::Colours::black;
@@ -100,11 +113,11 @@ public:
         gainBox.setJustificationType(juce::Justification::centred); gainBox.setEditable(false, true); gainBox.setFont(mx_::mono(9.0f)); gainBox.setColour(juce::Label::textColourId, mx_::yel);
         gainBox.setTooltip("Fader value in dB; double-click to type one"); gainBox.setColour(juce::Label::backgroundColourId, mx_::slot);
         gainBox.onTextChange = [this] { float v = gainBox.getText().trim().startsWith("-") && gainBox.getText().contains("inf") ? -60.0f : gainBox.getText().getFloatValue(); setGain(juce::jlimit(-60.0f, 6.0f, v)); refresh(); };
-        fader.onChange = [this](float v) { setGain(v); gainBox.setText(mx_::dbText(v), juce::dontSendNotification); };
-        pan.onValueChange = [this] { if (!isBus) ch().pan = float(pan.getValue()); };
-        m_.onClick = [this] { if (!isBus) { ch().mute = !ch().mute; refresh(); } };
+        fader.onChange = [this](float v) { float old = isBus ? bus().volumeDb : ch().gainDb; setGain(v); if (isBus && bus().link && onGain) onGain(this, v - old); gainBox.setText(mx_::dbText(v), juce::dontSendNotification); };
+        pan.onValueChange = [this] { if (isBus) bus().pan = float(pan.getValue()); else ch().pan = float(pan.getValue()); };
+        m_.onClick = [this] { if (isBus) bus().mute = !bus().mute; else ch().mute = !ch().mute; refresh(); };
         s_.onClick = [this] { if (!isBus) { ch().solo = !ch().solo; refresh(); } };
-        dim_.onClick = [this] { if (isBus) { bus().dim = !bus().dim; refresh(); } };
+        dim_.onClick = [this] { if (isBus && onLinkToggle) onLinkToggle(this); };
         t_.onClick = [this] { if (!isBus) { ch().trim = !ch().trim; refresh(); } };
         d_.onClick = [this] { if (!isBus) { ch().fx.compOn = !ch().fx.compOn; refresh(); } };
         w_.onClick = [this] { if (onWrench) onWrench(this); }; fx_.onClick = [this] { if (onFx) onFx(this); };
@@ -121,7 +134,7 @@ public:
     void refresh() {
         float g = isBus ? bus().volumeDb : ch().gainDb;
         fader.set(g); gainBox.setText(mx_::dbText(g), juce::dontSendNotification);
-        if (isBus) { dim_.setToggleState(bus().dim, juce::dontSendNotification); }
+        if (isBus) { dim_.setToggleState(bus().link, juce::dontSendNotification); m_.setToggleState(bus().mute, juce::dontSendNotification); pan.setValue(bus().pan, juce::dontSendNotification); pan.setDoubleClickReturnValue(wm::mixer::settings().doubleClickReset, 0.0); }
         else {
             auto& c = ch(); m_.setToggleState(c.mute, juce::dontSendNotification); s_.setToggleState(c.solo, juce::dontSendNotification); t_.setToggleState(c.trim, juce::dontSendNotification);
             d_.setToggleState(c.fx.compOn, juce::dontSendNotification); st_.setToggleState(c.stereoLinked, juce::dontSendNotification); pan.setValue(c.pan, juce::dontSendNotification);
@@ -139,20 +152,20 @@ public:
         g.setColour(mx_::ink); g.setFont(mx_::f(10.0f, true));
         g.drawText((em.empty() ? juce::String() : juce::String(juce::CharPointer_UTF8(em.c_str())) + " ") + nm, 2, 3, kW - 5, 18, juce::Justification::centred, true);
         if (selected) { g.setColour(juce::Colour(0xff01fcdc)); g.drawRect(getLocalBounds().withTrimmedRight(1), 1); }
-        if (!isBus) {   // M/S pill, pan value box
+        {   // M/S pill, pan value box
             g.setColour(mx_::pill); g.fillRoundedRectangle(11.0f, 55.0f, 52.0f, 18.0f, 10.0f);
             g.setColour(mx_::slot); g.fillRoundedRectangle(44.0f, 32.0f, 14.0f, 13.0f, 3.0f);
             g.setColour(mx_::yel); g.setFont(mx_::mono(10.0f));
-            float p = ch().pan; g.drawText(juce::String(int(std::round(std::fabs(p) * 50))), 44, 32, 14, 13, juce::Justification::centred, false);
-        } else { g.setColour(mx_::pill); g.fillRoundedRectangle(11.0f, 55.0f, 52.0f, 18.0f, 10.0f); }
+            float p = isBus ? bus().pan : ch().pan; g.drawText(juce::String(int(std::round(std::fabs(p) * 50))), 44, 32, 14, 13, juce::Justification::centred, false);
+        }
         g.setFont(mx_::f(8.0f)); g.setColour(mx_::mute);
         g.drawText(mx_::dbText(pkL, 0) + " " + mx_::dbText(pkR, 0), 14, 75, 46, 11, juce::Justification::centred, false);
         if (showNames) { g.setFont(mx_::f(9.0f)); g.setColour(mx_::mute); g.drawText(hwLabel(), 0, 230, kW - 1, 12, juce::Justification::centred, false); }
     }
     void resized() override {
-        pan.setBounds(14, 25, 26, 26); pan.setVisible(!isBus);
-        m_.setBounds(12, 56, 24, 16); s_.setBounds(38, 56, 24, 16); m_.setVisible(!isBus); s_.setVisible(!isBus);
-        dim_.setBounds(14, 56, 46, 16); dim_.setVisible(isBus);
+        pan.setBounds(14, 25, 26, 26); pan.setVisible(true);
+        m_.setBounds(12, 56, 24, 16); s_.setBounds(38, 56, 24, 16); s_.setVisible(!isBus);
+        dim_.setBounds(38, 56, 24, 16); dim_.setVisible(isBus && bus().controlRoom);
         fader.setBounds(3, 90, 67, 120);
         t_.setBounds(55, 92, 18, 18);
         int y = 90 + 120 - 3 * 18 - 2 * 3 - 0; w_.setBounds(52, y + 0, 18, 18); fx_.setBounds(52, y + 21, 18, 18); d_.setBounds(52, y + 42, 18, 18);
@@ -330,11 +343,11 @@ public:
         settings.setChannel(selectedChannel); if (fxOpen_) fxPanel.setChannel(selectedChannel);
         updateLit(); relayoutRows(); if (onSelect) onSelect(selectedChannel);
     }
-    void refreshAll() { rebuild(); for (auto& s : strips) s->refresh(); refreshSnaps(); settings.sync(); }
+    void refreshAll() { rebuild(); for (auto& s : strips) s->refresh(); refreshSnaps(); settings.sync(); syncCr(); }
     void paint(juce::Graphics&) override {}
     void resized() override {
         auto r = getLocalBounds(); int sideW = 150; auto sb = r.removeFromRight(sideW); r.removeFromRight(8);
-        sidebar.setBounds(sb.withHeight(511)); layoutSidebar();
+        sidebar.setBounds(sb.withHeight(575)); layoutSidebar();
         areaW = r.getWidth(); body.setSize(areaW, getHeight()); relayoutRows();
     }
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& w) override { scrollBy(w.deltaY); }
@@ -358,16 +371,22 @@ private:
             s->onSplit = [this](MockStrip* st) { split(st->idx); };
             s->onRoute = [this](MockStrip*) { if (onOpenRouting) onOpenRouting(); };
             s->onLook = [this](MockStrip*) { refreshStrips(); };
+            s->onGain = [this](MockStrip* st, float d) { for (auto& o : strips) if (o.get() != st && o->isBus && o->bus().controlRoom && o->bus().link) { o->bus().volumeDb = juce::jlimit(-60.0f, 6.0f, o->bus().volumeDb + d); o->refresh(); } };
+            s->onLinkToggle = [this](MockStrip* st) { bool v = !st->bus().link; eachCr([v](wm::mixer::Bus& b) { b.link = v; }); refreshStrips(); };
             s->showParts(showFx, showTrim, showNames);
         };
         for (int i = 0; i < int(mx.state().channels.size()); ++i) { auto& c = mx.state().channels[size_t(i)]; if (c.hidden) continue; add(c.playback ? rPb : rIn, false, i); }
-        for (int b = int(mx.state().buses.size()) - 1; b >= 0; --b) if (b < 2) add(rCr, true, b);   // control room shows the speakers right to left like the mockup
-        for (int b = 2; b < int(mx.state().buses.size()); ++b) add(rOut, true, b);
+        for (int b = int(mx.state().buses.size()) - 1; b >= 0; --b) if (mx.state().buses[size_t(b)].controlRoom) add(rCr, true, b);   // control room: as many as the layout has, last one first like the mockup
+        for (int b = 0; b < int(mx.state().buses.size()); ++b) if (!mx.state().buses[size_t(b)].controlRoom) add(rOut, true, b);
         selectedChannel = juce::jlimit(0, juce::jmax(0, int(mx.state().channels.size()) - 1), selectedChannel);
         for (auto& s : strips) s->selected = !s->isBus && s->idx == selectedChannel;
         updateLit(); relayoutRows();
     }
-    void refreshStrips() { for (auto& s : strips) s->refresh(); settings.sync(); }
+    int crCount() { int n = 0; for (auto& b : mx.state().buses) if (b.controlRoom) ++n; return n; }
+    template <class F> void eachCr(F f) { for (auto& b : mx.state().buses) if (b.controlRoom) f(b); }
+    wm::mixer::Bus* cr0() { for (auto& b : mx.state().buses) if (b.controlRoom) return &b; return nullptr; }
+    void refreshStrips() { for (auto& s : strips) s->refresh(); settings.sync(); syncCr(); }
+    void syncCr() { auto* b = cr0(); bool has = b != nullptr; for (auto* x : {&crDim, &crMono}) x->setVisible(has); spkB.setVisible(crCount() > 1); if (crCount() > 1) { int c2 = 0; for (auto& bb : mx.state().buses) if (bb.controlRoom && ++c2 == 2) spkB.setToggleState(bb.solo, juce::dontSendNotification); } dimKnob.setVisible(has); sidebar.showCr = has; if (has) { crDim.setToggleState(b->dim, juce::dontSendNotification); crMono.setToggleState(b->mono, juce::dontSendNotification); dimKnob.setValue(b->dimDb, juce::dontSendNotification); } sidebar.repaint(); }
     void split(int c) {
         if (c < 0 || c >= int(mx.state().channels.size())) return;
         if (mx.state().channels[size_t(c)].stereoLinked) { if (mx.splitStereo(c)) rt.duplicateInput(c); }
@@ -396,7 +415,8 @@ private:
         int w = areaW, y = 0;
         rIn.setBounds(0, y, w, rIn.fullH()); y += rIn.fullH() + 6;
         rPb.setBounds(0, y, w, rPb.fullH()); y += rPb.fullH() + 6;
-        rOut.setBounds(0, y, w - 175, rOut.fullH()); rCr.setBounds(w - 169, y, 169, rCr.fullH()); y += juce::jmax(rOut.fullH(), rCr.fullH());
+        int nCr = crCount(); int crW = nCr * MockStrip::kW + 2; rCr.setVisible(nCr > 0);
+        rOut.setBounds(0, y, nCr > 0 ? w - crW - 6 : w, rOut.fullH()); rCr.setBounds(w - crW, y, crW, rCr.fullH()); y += juce::jmax(rOut.fullH(), rCr.fullH());
         for (auto* row : rows) row->setContentWidth(row->contentW);
         totalH = y; body.setBounds(0, -scrollY(), areaW, totalH); repaint();
     }
@@ -419,6 +439,30 @@ private:
         b(storeB, "Store", "Store the current mix as a snapshot", [this] { int n = int(mx.snapshotNames().size()) + 1; mx.store("Snapshot " + std::to_string(n)); refreshSnaps(); });
         b(reverbB, juce::CharPointer_UTF8("FX \xC2\xB7 Reverb / Echo   \xE2\x96\xB8"), "Reverb and echo of the FX bus", [this] { if (onOpenReverb) onOpenReverb(); });
         reverbB.fill = juce::Colour(0xff3308af); reverbB.edge = juce::Colour(0xff3308af); reverbB.textCol = juce::Colours::white; reverbB.radius = 3.0f; reverbB.fontSize = 9.0f;
+        b(crDim, "dim", "Dim the control room outputs by the dim amount; click again to return to the previous level", [this] { auto* f = cr0(); if (!f) return; bool v = !f->dim; eachCr([v](wm::mixer::Bus& b) { b.dim = v; }); refreshStrips(); });
+        b(crMono, "mono", "Mono check: sums left and right on the control room outputs so you can hear if the mix holds in mono; click again for stereo (WhiskerMix's own output; the Digiface hardware mixer mono write is not decoded yet)", [this] { auto* f = cr0(); if (!f) return; bool v = !f->mono; eachCr([v](wm::mixer::Bus& b) { b.mono = v; }); refreshStrips(); });
+        for (auto* x : {&crDim, &crMono}) { x->fillOn = juce::Colour(0xffff9000); x->textOn = juce::Colours::black; x->fontSize = 10.0f; }
+        dimKnob.setRange(-40.0, -3.0, 1.0); dimKnob.setDoubleClickReturnValue(true, -20.0); dimKnob.setTooltip("How far dim lowers the output, in dB (default -20; double-click resets)"); sidebar.addAndMakeVisible(dimKnob);
+        dimKnob.onValueChange = [this] { float d = float(dimKnob.getValue()); eachCr([d](wm::mixer::Bus& b) { b.dimDb = d; }); sidebar.repaint(); };
+        b(spkB, "speaker B", "Switch the control room to the second output (only one plays at a time); click again for the first", [this] { int a = -1, b2 = -1; for (size_t i = 0; i < mx.state().buses.size(); ++i) if (mx.state().buses[i].controlRoom) { (a < 0 ? a : b2) = (a < 0 ? int(i) : (b2 < 0 ? int(i) : b2)); }
+            if (b2 < 0) return; bool on = !mx.state().buses[size_t(b2)].solo; eachCr([](wm::mixer::Bus& x) { x.solo = false; }); mx.state().buses[size_t(on ? b2 : a)].solo = true; refreshStrips(); });
+        spkB.fillOn = juce::Colour(0xffff9000); spkB.textOn = juce::Colours::black; spkB.fontSize = 10.0f;
+        auto vo = [this](MockButton& x, const char* t, const char* tip) { x.setButtonText(t); x.setTooltip(tip); x.fill = juce::Colour(0xff3308af); x.edge = juce::Colour(0xff3308af); x.textCol = juce::Colours::white; x.fillOn = juce::Colours::white; x.textOn = juce::Colour(0xff3308af); x.radius = 8.0f; x.fontSize = 8.0f; x.bold = true; sidebar.addAndMakeVisible(x); };
+        vo(modeSub, "SUBMIX", "Routing mode SUBMIX: each output has its own mix (not wired to the engine yet)"); vo(modeFree, "FREE", "Routing mode FREE: routes are set freely in the matrix (not wired to the engine yet)");
+        modeSub.setToggleState(true, juce::dontSendNotification);
+        modeSub.onClick = [this] { routeFree = false; modeSub.setToggleState(true, juce::dontSendNotification); modeFree.setToggleState(false, juce::dontSendNotification); };
+        modeFree.onClick = [this] { routeFree = true; modeSub.setToggleState(false, juce::dontSendNotification); modeFree.setToggleState(true, juce::dontSendNotification); };
+        vo(meterPost, "POST FX", "Meters show the level after FX (now: peak level; not wired to the engine yet)"); vo(meterRms, "RMS", "Meters show RMS level (not wired to the engine yet)");
+        meterPost.setToggleState(true, juce::dontSendNotification);
+        meterPost.onClick = [this] { meterIsRms = false; meterPost.setToggleState(true, juce::dontSendNotification); meterRms.setToggleState(false, juce::dontSendNotification); };
+        meterRms.onClick = [this] { meterIsRms = true; meterPost.setToggleState(false, juce::dontSendNotification); meterRms.setToggleState(true, juce::dontSendNotification); };
+        vo(show2Row, "2 ROW", "Show the strips in two rows (not wired yet)"); show2Row.onClick = [this] { twoRow = !twoRow; show2Row.setToggleState(twoRow, juce::dontSendNotification); };
+        for (auto* x : {&showFxB, &showTrimB, &showNamesB}) { x->fillOn = juce::Colours::white; x->textOn = juce::Colour(0xff3308af); }
+        auto menuBar = [this](MockButton& x, const juce::String& t, const char* tip, const char* what) { x.setButtonText(t); x.setTooltip(tip); x.fill = juce::Colour(0xff3308af); x.edge = juce::Colour(0xff3308af); x.textCol = juce::Colours::white; x.radius = 3.0f; x.fontSize = 9.0f; x.bold = true; sidebar.addAndMakeVisible(x);
+            x.onClick = [&x, what] { juce::PopupMenu m; m.addItem(1, juce::String(what) + " (coming soon)", false); m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&x)); }; };
+        menuBar(groupsB, juce::CharPointer_UTF8("Groups   \xE2\x96\xB8"), "Channel groups (coming soon)", "Groups");
+        menuBar(presetsB, juce::CharPointer_UTF8("Layout presets   \xE2\x96\xB8"), "Saved strip layouts (coming soon)", "Layout presets");
+        menuBar(remoteB, juce::CharPointer_UTF8("Remote \xC2\xB7 Mackie / OSC   \xE2\x96\xB8"), "Hardware controller and OSC remote (coming soon)", "Mackie / OSC remote");
         snaps.setTooltip("Snapshots: click to recall"); snaps.setColour(juce::ListBox::backgroundColourId, juce::Colours::transparentBlack); snaps.setModel(&snapModel); snapModel.owner = this; snaps.setRowHeight(14); sidebar.addAndMakeVisible(snaps);
     }
     void applyShow() { for (auto& s : strips) s->showParts(showFx, showTrim, showNames); }
@@ -426,16 +470,22 @@ private:
     void layoutSidebar() {
         devLabel.setBounds(6, 6, 138, 22); undoB.setBounds(42, 34, 30, 22); redoB.setBounds(78, 34, 30, 22);
         muteAll.setBounds(40, 62, 22, 22); soloAll.setBounds(88, 62, 22, 22);
-        showFxB.setBounds(14, 126, 58, 16); showTrimB.setBounds(78, 126, 58, 16); showNamesB.setBounds(14, 146, 58, 16);
-        snaps.setBounds(10, 207, 130, 150); storeB.setBounds(6, 362, 138, 20); reverbB.setBounds(6, 392, 138, 18);
+        modeSub.setBounds(14, 126, 58, 16); modeFree.setBounds(78, 126, 58, 16); meterPost.setBounds(14, 158, 58, 16); meterRms.setBounds(78, 158, 58, 16);
+        showFxB.setBounds(14, 190, 58, 16); showTrimB.setBounds(78, 190, 58, 16); show2Row.setBounds(14, 210, 58, 16); showNamesB.setBounds(78, 210, 58, 16);
+        snaps.setBounds(10, 260, 130, 84); storeB.setBounds(6, 348, 138, 20);
+        crDim.setBounds(6, 398, 66, 18); crMono.setBounds(78, 398, 66, 18); dimKnob.setBounds(14, 422, 30, 30); spkB.setBounds(6, 456, 138, 18);
+        groupsB.setBounds(6, 484, 138, 18); presetsB.setBounds(6, 506, 138, 18); reverbB.setBounds(6, 528, 138, 18); remoteB.setBounds(6, 550, 138, 18);
     }
     struct Side : juce::Component {
+        bool showCr = true;
         void paint(juce::Graphics& g) override {
             auto r = getLocalBounds().toFloat().reduced(0.5f); g.setColour(mx_::side); g.fillRoundedRectangle(r, 6.0f); g.setColour(juce::Colour(0xff4a4e57)); g.drawRoundedRectangle(r, 6.0f, 1.0f);
             auto bar = [&](int y, const char* t) { g.setColour(juce::Colour(0xff3308af)); g.fillRoundedRectangle(6.0f, float(y), 138.0f, 18.0f, 3.0f); g.setColour(juce::Colours::white); g.setFont(mx_::f(10.0f, true)); g.drawText(t, 12, y, 120, 18, juce::Justification::centredLeft, false); };
-            bar(92, "View options"); g.setColour(juce::Colour(0xff774bf9)); g.fillRect(6, 110, 138, 58);
-            g.setColour(juce::Colours::white); g.setFont(mx_::f(7.0f, true)); g.drawText("SHOW", 6, 114, 138, 10, juce::Justification::centred, false);
-            bar(176, "Snapshots");
+            bar(92, "View options"); g.setColour(juce::Colour(0xff774bf9)); g.fillRect(6, 110, 138, 120);
+            g.setColour(juce::Colours::white); g.setFont(mx_::f(7.0f, true));
+            g.drawText("ROUTING MODE", 6, 114, 138, 10, juce::Justification::centred, false); g.drawText("LEVEL METERS", 6, 146, 138, 10, juce::Justification::centred, false); g.drawText("SHOW", 6, 178, 138, 10, juce::Justification::centred, false);
+            bar(238, "Snapshots");
+            if (showCr) { bar(376, "Control room"); g.setColour(mx_::mute); g.setFont(mx_::f(8.0f)); g.drawText("Dim amount", 52, 430, 90, 10, juce::Justification::centredLeft, false); }
         }
     };
     struct SnapModel : juce::ListBoxModel {
@@ -451,7 +501,7 @@ private:
     wm::mixer::Mixer& mx; wm::mixer::RoutingMatrix& rt; wm::engine::AudioEngine& eng;
     MockRow rIn, rPb, rOut, rCr; MockSettings settings; MockFxPanel fxPanel;
     std::vector<std::unique_ptr<MockStrip>> strips, stripsOwned;
-    Side sidebar; juce::Label devLabel; MockButton undoB, redoB, muteAll, soloAll, showFxB, showTrimB, showNamesB, storeB, reverbB; juce::Component body; juce::ListBox snaps; SnapModel snapModel; std::vector<std::string> snapNames;
+    Side sidebar; juce::Label devLabel; MockButton spkB, modeSub, modeFree, meterPost, meterRms, show2Row, groupsB, presetsB, remoteB; bool routeFree = false, meterIsRms = false, twoRow = false; MockButton undoB, redoB, muteAll, soloAll, showFxB, showTrimB, showNamesB, storeB, reverbB, crDim, crMono; MockKnob dimKnob; juce::Component body; juce::ListBox snaps; SnapModel snapModel; std::vector<std::string> snapNames;
     bool fxOpen_ = false, panelOpen_ = false, showFx = true, showTrim = true, showNames = true; int areaW = 816, settingsX = 0;
 };
 }  // namespace wmui

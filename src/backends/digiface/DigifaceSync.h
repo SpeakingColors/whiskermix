@@ -114,7 +114,7 @@ public:
         for (size_t b = 0; b < st.buses.size(); ++b) {
             const auto& bus = st.buses[b];
             if (bus.hwFirst < 0) continue;
-            float db = bus.volumeDb + (bus.dim ? kDimDb : 0.0f);
+            float db = bus.mute ? -120.0f : bus.volumeDb + (bus.dim ? bus.dimDb : 0.0f);
             if (int(b) == busA_ && busB_ >= 0 && speakerB_) db = -120.0f;
             if (int(b) == busB_ && !speakerB_) db = -120.0f;
             for (const auto& x : outputVolume(bus.hwFirst, bus.stereo, db)) {

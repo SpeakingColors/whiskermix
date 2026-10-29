@@ -58,7 +58,7 @@ public:
 #endif
         auto* view = new wmui::AppView(*mixer, *routing, *engine);
         // Digiface hardware mixer: bus 0 = Main (control room), bus 1 = Speaker B (iLoud Micro).
-        digiface = std::make_unique<wmui::DigifaceLink>(*mixer, 0, mixer->state().buses.size() >= 2 ? 1 : -1);
+        digiface = std::make_unique<wmui::DigifaceLink>(*mixer, 0, (mixer->state().buses.size() >= 2 && mixer->state().buses[1].controlRoom) ? 1 : -1);
         view->digifaceStatus = [this] { return digiface->status(); };
         view->onWorkspaceLoaded = [this] { digiface->resend(); };
 #ifndef WM_JUCE_AUDIO

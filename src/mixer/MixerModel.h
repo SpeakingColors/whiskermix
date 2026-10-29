@@ -37,6 +37,13 @@ struct Bus {
     std::string name;
     float volumeDb = 0.0f;
     bool dim = false;
+    float dimDb = -20.0f;       // how far Dim lowers the output (configurable); switching Dim off returns to the previous level
+    bool mono = false;          // mono check: left and right summed (WhiskerMix's own output path)
+    bool mute = false;
+    float pan = 0.0f;           // output balance -1..+1 (WhiskerMix's own output path; the Digiface hardware write is not decoded yet)
+    bool link = false;          // control room: moving one volume moves the linked ones by the same amount
+    bool solo = false;          // control room: only this output plays (Speaker A/B switch); none set = the first one
+    bool controlRoom = false;   // belongs to the control room (monitor outputs); the layout decides how many there are
     int hwFirst = -1;           // Digiface hardware output (0-based); -1 = software only
     bool stereo = true;
     // Bus effects (use a dedicated bus as an FX return): reverb/shimmer reverb and shimmer delay.
@@ -138,7 +145,7 @@ public:
     // Main volume writes with dim applied (dim is -20 dB).
     std::vector<digiface::ControlWrite> mainWrites(int bus, int bank) const {
         const auto& b = state_.buses.at(size_t(bus));
-        return digiface::mainVolume(bank, b.volumeDb + (b.dim ? digiface::kDimDb : 0.0f));
+        return digiface::mainVolume(bank, b.mute ? -120.0f : b.volumeDb + (b.dim ? b.dimDb : 0.0f));
     }
 
 private:

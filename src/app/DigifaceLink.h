@@ -53,6 +53,11 @@ private:
             tryOpen();
 #endif
         }
+        {   // Mono and Speaker B come from the control room buses (first = Main, second = Speaker B)
+            auto& bs = mx.state().buses; int a = -1, b2 = -1;
+            for (size_t i = 0; i < bs.size(); ++i) if (bs[i].controlRoom) { if (a < 0) a = int(i); else if (b2 < 0) b2 = int(i); }
+            sync.setMainMono(a >= 0 && bs[size_t(a)].mono); sync.setSpeakerB(b2 >= 0 && bs[size_t(b2)].solo);
+        }
         const int n = sync.sync(mx);
         count += n;
         if (tick % 50 == 0) { perSecond = count; count = 0; }

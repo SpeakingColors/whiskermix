@@ -162,9 +162,15 @@ public:
                     }
             }
         }
+        int crActive = -1, crCount = 0;   // control room outputs play one at a time (Speaker A/B): the soloed one, else the first
+        for (size_t b = 0; b < nb; ++b) if (st.buses[b].controlRoom) { ++crCount; if (crActive < 0) crActive = int(b); }
+        if (crCount > 1) for (size_t b = 0; b < nb; ++b) if (st.buses[b].controlRoom && st.buses[b].solo) { crActive = int(b); break; }
         for (size_t b = 0; b < nb; ++b) {
             const auto& bus = st.buses[b];
-            float v = dbToLin(bus.volumeDb + (bus.dim ? digiface::kDimDb : 0.0f));
+            const bool silenced = crCount > 1 && bus.controlRoom && int(b) != crActive;
+            float v = (bus.mute || silenced) ? 0.0f : dbToLin(bus.volumeDb + (bus.dim ? bus.dimDb : 0.0f));
+            if (bus.mono) { float *L = out[b * 2], *R = out[b * 2 + 1]; for (int i = 0; i < n; ++i) { float m = 0.5f * (L[i] + R[i]); L[i] = R[i] = m; } }
+            if (bus.pan != 0.0f) { float *L = out[b * 2], *R = out[b * 2 + 1]; const float gl = bus.pan > 0 ? 1.0f - bus.pan : 1.0f, gr = bus.pan < 0 ? 1.0f + bus.pan : 1.0f; for (int i = 0; i < n; ++i) { L[i] *= gl; R[i] *= gr; } }
             if (bus.delayOn || bus.reverbOn) {
                 float *L = out[b * 2], *R = out[b * 2 + 1];
                 for (int i = 0; i < n; ++i) {
