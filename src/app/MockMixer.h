@@ -110,7 +110,7 @@ public:
         tog(go_, juce::CharPointer_UTF8("\xE2\x96\xB8"), "Routing: where this strip goes"); go_.radius = 3.0f;
         pan.setRange(-1.0, 1.0, 0.01); pan.setTooltip("Pan (pair: balance); double-click resets"); addAndMakeVisible(pan);
         addAndMakeVisible(fader); fader.toBack(); addAndMakeVisible(gainBox);
-        gainBox.setJustificationType(juce::Justification::centred); gainBox.setEditable(false, true); gainBox.setFont(mx_::mono(9.0f)); gainBox.setColour(juce::Label::textColourId, mx_::yel);
+        gainBox.setJustificationType(juce::Justification::centred); gainBox.setEditable(false, true); gainBox.setFont(mx_::mono(8.5f)); gainBox.setColour(juce::Label::textColourId, mx_::yel);
         gainBox.setTooltip("Fader value in dB; double-click to type one"); gainBox.setColour(juce::Label::backgroundColourId, mx_::slot);
         gainBox.onTextChange = [this] { float v = gainBox.getText().trim().startsWith("-") && gainBox.getText().contains("inf") ? -60.0f : gainBox.getText().getFloatValue(); setGain(juce::jlimit(-60.0f, 6.0f, v)); refresh(); };
         fader.onChange = [this](float v) { float old = isBus ? bus().volumeDb : ch().gainDb; setGain(v); if (isBus && bus().link && onGain) onGain(this, v - old); gainBox.setText(mx_::dbText(v), juce::dontSendNotification); };
@@ -170,7 +170,8 @@ public:
         t_.setBounds(55, 92, 18, 18);
         int y = 90 + 120 - 3 * 18 - 2 * 3 - 0; w_.setBounds(52, y + 0, 18, 18); fx_.setBounds(52, y + 21, 18, 18); d_.setBounds(52, y + 42, 18, 18);
         d_.setVisible(!isBus); w_.setVisible(true); if (isBus) { w_.setVisible(false); fx_.setVisible(false); t_.setVisible(false); }
-        gainBox.setBounds(6, 214, 20, 14); st_.setBounds(28, 214, 22, 14); go_.setBounds(53, 214, 14, 14); st_.setVisible(!isBus);
+        if (isBus) gainBox.setBounds(6, 214, 46, 14); else gainBox.setBounds(4, 214, 30, 14);
+        st_.setBounds(36, 214, 20, 14); go_.setBounds(58, 214, 13, 14); st_.setVisible(!isBus);
     }
     void mouseDown(const juce::MouseEvent& e) override {
         if (onSelect) onSelect(this);
