@@ -9,6 +9,8 @@ const juce::Colour outer(0xff0b0b0c), body(0xff2a2c31), dark(0xff1f2125), line(0
     mute(0xffb9b6ae), aqua(0xff01fcdc), orange(0xffff9000), ink2(0xff1e1f23);
 }
 
+inline float textWidth(const juce::Font& f, const juce::String& t) { juce::GlyphArrangement ga; ga.addLineOfText(f, t, 0.0f, 0.0f); return ga.getBoundingBox(0, -1, true).getWidth(); }
+
 // Flat button drawn like the mockup's buttons.
 class MockButton : public juce::Button {
 public:

@@ -37,7 +37,7 @@ public:
         {   // "Name: Studio Aggregate · 42 in · 44 out", right aligned
             auto f = mx_::f(11.0f); g.setFont(f);
             const juce::String a = "Name: ", b = "Studio Aggregate", c = juce::String(juce::CharPointer_UTF8(" \xC2\xB7 ")) + juce::String(nin) + juce::String(juce::CharPointer_UTF8(" in \xC2\xB7 ")) + juce::String(nout) + " out";
-            int wa = int(f.getStringWidthFloat(a)) + 1, wb = int(f.getStringWidthFloat(b)) + 1, wc = int(f.getStringWidthFloat(c)) + 2, x = getWidth() - 11 - wa - wb - wc;
+            int wa = int(textWidth(f, a)) + 1, wb = int(textWidth(f, b)) + 1, wc = int(textWidth(f, c)) + 2, x = getWidth() - 11 - wa - wb - wc;
             g.setColour(mock::ink); g.drawText(a, x, 8, wa, 16, juce::Justification::centredLeft, false); g.setColour(mock::aqua); g.drawText(b, x + wa, 8, wb, 16, juce::Justification::centredLeft, false);
             g.setColour(mock::ink); g.drawText(c, x + wa + wb, 8, wc, 16, juce::Justification::centredLeft, false);
         }

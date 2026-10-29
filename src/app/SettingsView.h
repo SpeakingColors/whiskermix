@@ -143,7 +143,7 @@ public:
     }
     void resized() override {
         auto r = getLocalBounds();
-        int x = 3; for (auto* b : subB) { int w = juce::Font(10.5f, juce::Font::bold).getStringWidth(b->getButtonText()) + 20; b->setBounds(x, 3, w, 22); x += w + 2; } subW = x + 2;
+        int x = 3; for (auto* b : subB) { int w = int(textWidth(juce::Font(10.5f, juce::Font::bold), b->getButtonText())) + 20; b->setBounds(x, 3, w, 22); x += w + 2; } subW = x + 2;
         importB.setBounds(r.getRight() - 80 - 8, 2, 80, 24); exportB.setBounds(importB.getX() - 6 - 112, 2, 112, 24);
         vp.setBounds(r.withTrimmedTop(36));
         const int w = juce::jmax(640, vp.getWidth() - vp.getScrollBarThickness());
@@ -184,7 +184,7 @@ private:
             if (s.kind == OptSpec::Toggle) tog.setBounds(r.removeFromRight(24).withSizeKeepingCentre(22, 22));
             if (s.kind == OptSpec::Slider) sld.setBounds(r.removeFromRight(juce::jmin(190, r.getWidth() * 55 / 100)));
             if (s.kind == OptSpec::Drop) drop.setBounds(r.removeFromRight(juce::jmin(120, r.getWidth() / 2)).reduced(0, 1));
-            if (s.kind == OptSpec::Seg) { int x = r.getRight(); for (int i = segs.size() - 1; i >= 0; --i) { int w = juce::Font(10.0f, juce::Font::bold).getStringWidth(s.opts[i]) + 18; x -= w; segs[i]->setBounds(x, 2, w, r.getHeight() - 4); } }
+            if (s.kind == OptSpec::Seg) { int x = r.getRight(); for (int i = segs.size() - 1; i >= 0; --i) { int w = int(textWidth(juce::Font(10.0f, juce::Font::bold), s.opts[i])) + 18; x -= w; segs[i]->setBounds(x, 2, w, r.getHeight() - 4); } }
         }
     };
     struct Card { juce::String title; std::vector<std::unique_ptr<OptRow>> rows; juce::Rectangle<int> r; int col = 0, rowTop = 0; };
