@@ -379,7 +379,7 @@ private:
         for (int i = 0; i < int(mx.state().channels.size()); ++i) { auto& c = mx.state().channels[size_t(i)]; if (c.hidden) continue; add(c.playback ? rPb : rIn, false, i); }
         {   // control room: as many as the layout has; Main out is the last (right-most) like the mockup, Main out B before it
             const int mi = wm::mixer::crMainIndex(mx.state()), ai = wm::mixer::crAltIndex(mx.state());
-            for (int b = int(mx.state().buses.size()) - 1; b >= 0; --b) if (mx.state().buses[size_t(b)].controlRoom && b != mi && b != ai) add(rCr, true, b);
+            for (int b = int(mx.state().buses.size()) - 1; b >= 0; --b) if (mx.state().buses[size_t(b)].controlRoom && b != mi && b != ai) add(rCr, true, b);   // phones and cue first
             if (ai >= 0) add(rCr, true, ai);
             if (mi >= 0) add(rCr, true, mi);
         }
@@ -389,7 +389,7 @@ private:
         updateLit(); relayoutRows();
     }
     int crCount() { int n = 0; for (auto& b : mx.state().buses) if (b.controlRoom) ++n; return n; }
-    template <class F> void eachCr(F f) { for (auto& b : mx.state().buses) if (b.controlRoom) f(b); }
+    template <class F> void eachCr(F f) { for (auto& b : mx.state().buses) if (b.controlRoom && b.crRole <= 2) f(b); }
     wm::mixer::Bus* cr0() { int i = wm::mixer::crMainIndex(mx.state()); return i >= 0 ? &mx.state().buses[size_t(i)] : nullptr; }
     void refreshStrips() { for (auto& s : strips) s->refresh(); settings.sync(); syncCr(); }
     void syncCr() { auto* b = cr0(); bool has = b != nullptr; for (auto* x : {&crDim, &crMono}) x->setVisible(has); spkB.setVisible(wm::mixer::crAltIndex(mx.state()) >= 0); { int ai = wm::mixer::crAltIndex(mx.state()); if (ai >= 0) spkB.setToggleState(mx.state().buses[size_t(ai)].solo, juce::dontSendNotification); } dimKnob.setVisible(has); sidebar.showCr = has; if (has) { crDim.setToggleState(b->dim, juce::dontSendNotification); crMono.setToggleState(b->mono, juce::dontSendNotification); dimKnob.setValue(b->dimDb, juce::dontSendNotification); } sidebar.repaint(); }
@@ -489,36 +489,33 @@ private:
         if (hw >= 32) return stereo ? "PH 33/34" : "PH " + juce::String(hw + 1);
         return "ADAT " + juce::String(hw + 1) + (stereo ? "/" + juce::String(hw + 2) : juce::String());
     }
-    // Assign dropdown: which outputs are Main out and Main out B (control room), and which hardware channels they play on.
+    // Assign dropdown, like TotalMix: Main Out, Main Out B, Phones 1-4, Cue/PFL to; each takes one hardware output pair (or None).
+    // A pair can be picked when the layout has an output strip for it; that strip then moves into the control room section.
     void showAssignMenu() {
-        auto& bs = mx.state().buses; juce::PopupMenu m, mainM, altM, chM;
-        const int mi = wm::mixer::crMainIndex(mx.state()), ai = wm::mixer::crAltIndex(mx.state());
-        for (size_t i = 0; i < bs.size(); ++i) {
-            const juce::String t = juce::String(bs[i].name) + "   (" + hwName(bs[i].hwFirst, bs[i].stereo) + ")";
-            mainM.addItem(100 + int(i), t, true, int(i) == mi);
-            altM.addItem(200 + int(i), t, true, int(i) == ai);
-        }
-        altM.addSeparator(); altM.addItem(299, "None (only one master output)", true, ai < 0);
-        m.addSubMenu("Main out", mainM); m.addSubMenu("Main out B", altM);
-        m.addSeparator();
-        for (int role = 1; role <= 2; ++role) {
-            const int bi = role == 1 ? mi : ai; if (bi < 0) continue;
-            juce::PopupMenu cm; const bool st = bs[size_t(bi)].stereo;
-            for (int hw = 0; hw < 16; hw += st ? 2 : 1) cm.addItem(1000 * role + hw + 1, hwName(hw, st), true, bs[size_t(bi)].hwFirst == hw);
-            cm.addItem(1000 * role + 33, hwName(32, st), true, bs[size_t(bi)].hwFirst == 32);
-            m.addSubMenu(juce::String(role == 1 ? "Main out" : "Main out B") + " channels: " + hwName(bs[size_t(bi)].hwFirst, st), cm);
+        auto& bs = mx.state().buses; juce::PopupMenu m;
+        static const char* names[7] = {"Main Out", "Main Out B", "Phones 1", "Phones 2", "Phones 3", "Phones 4", "Cue/PFL to"};
+        for (int role = 1; role <= 7; ++role) {
+            juce::PopupMenu sub; int holder = -1;
+            for (size_t i = 0; i < bs.size(); ++i) if (bs[i].controlRoom && bs[i].crRole == role) holder = int(i);
+            if (holder < 0 && (role == 1 || role == 2)) holder = role == 1 ? wm::mixer::crMainIndex(mx.state()) : wm::mixer::crAltIndex(mx.state());
+            sub.addItem(role * 1000, "None", true, holder < 0);
+            for (int hw = 0; hw <= 32; hw += 2) {
+                if (hw > 30 && hw != 32) continue;
+                int bi = -1; for (size_t i = 0; i < bs.size(); ++i) if (bs[i].hwFirst == hw && bs[i].stereo) bi = int(i);
+                sub.addItem(role * 1000 + hw + 1, hwName(hw, true) + (bi < 0 ? "  (no strip in layout)" : ""), bi >= 0, bi >= 0 && bi == holder);
+            }
+            m.addSubMenu(names[role - 1], sub);
         }
         m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&assignB), [this, safe = juce::Component::SafePointer<MockMixerView>(this)](int r) {
             if (!safe || r <= 0) return;
-            auto& b = mx.state().buses; const int mi2 = wm::mixer::crMainIndex(mx.state()), ai2 = wm::mixer::crAltIndex(mx.state());
-            auto setRole = [&](int role, int idx) {   // idx -1 = none
-                int old = role == 1 ? mi2 : ai2;
-                if (old >= 0 && old != idx) { b[size_t(old)].crRole = 0; b[size_t(old)].controlRoom = false; b[size_t(old)].solo = false; }
-                if (idx >= 0) { for (auto& x : b) if (&x != &b[size_t(idx)] && x.controlRoom && x.crRole == role) x.crRole = 0; b[size_t(idx)].controlRoom = true; b[size_t(idx)].crRole = role; }
-            };
-            if (r >= 100 && r < 200) { int i = r - 100; if (i == ai2) setRole(2, -1); setRole(1, i); }
-            else if (r >= 200 && r < 300) { int i = r - 200; if (r == 299) setRole(2, -1); else { if (i == mi2) return; setRole(2, i); } }
-            else { int role = r / 1000, hw = r % 1000 - 1; int bi = role == 1 ? mi2 : ai2; if (bi >= 0) b[size_t(bi)].hwFirst = hw; }
+            auto& b = mx.state().buses; const int role = r / 1000, hw = r % 1000 - 1;
+            const int mi = wm::mixer::crMainIndex(mx.state()), ai = wm::mixer::crAltIndex(mx.state());
+            // free the strip that held this role (explicit role, or the implicit first/second control room strip)
+            int old = -1; for (size_t i = 0; i < b.size(); ++i) if (b[i].controlRoom && b[i].crRole == role) old = int(i);
+            if (old < 0 && role == 1) old = mi; if (old < 0 && role == 2) old = ai;
+            if (old >= 0) { b[size_t(old)].controlRoom = false; b[size_t(old)].crRole = 0; b[size_t(old)].solo = false; }
+            if (hw >= 0) for (auto& x : b) if (x.hwFirst == hw && x.stereo) { x.controlRoom = true; x.crRole = role; x.solo = false; break; }
+            // keep implicit roles explicit so the other one does not change when this one moves
             refreshAll(); if (onStructure) onStructure();
         });
     }

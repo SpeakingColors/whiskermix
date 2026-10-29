@@ -163,12 +163,12 @@ public:
             }
         }
         int crActive = -1, crCount = 0;   // control room outputs play one at a time (Speaker A/B): the soloed one, else the first
-        for (size_t b = 0; b < nb; ++b) if (st.buses[b].controlRoom) ++crCount;
+        for (size_t b = 0; b < nb; ++b) if (st.buses[b].controlRoom && st.buses[b].crRole <= 2) ++crCount;   // Main out / Main out B play one at a time; Phones and Cue are always on
         crActive = wm::mixer::crMainIndex(st);
-        if (crCount > 1) for (size_t b = 0; b < nb; ++b) if (st.buses[b].controlRoom && st.buses[b].solo) { crActive = int(b); break; }
+        if (crCount > 1) for (size_t b = 0; b < nb; ++b) if (st.buses[b].controlRoom && st.buses[b].crRole <= 2 && st.buses[b].solo) { crActive = int(b); break; }
         for (size_t b = 0; b < nb; ++b) {
             const auto& bus = st.buses[b];
-            const bool silenced = crCount > 1 && bus.controlRoom && int(b) != crActive;
+            const bool silenced = crCount > 1 && bus.controlRoom && bus.crRole <= 2 && int(b) != crActive;
             float v = (bus.mute || silenced) ? 0.0f : dbToLin(bus.volumeDb + (bus.dim ? bus.dimDb : 0.0f));
             if (bus.mono) { float *L = out[b * 2], *R = out[b * 2 + 1]; for (int i = 0; i < n; ++i) { float m = 0.5f * (L[i] + R[i]); L[i] = R[i] = m; } }
             if (bus.pan != 0.0f) { float *L = out[b * 2], *R = out[b * 2 + 1]; const float gl = bus.pan > 0 ? 1.0f - bus.pan : 1.0f, gr = bus.pan < 0 ? 1.0f + bus.pan : 1.0f; for (int i = 0; i < n; ++i) { L[i] *= gl; R[i] *= gr; } }
