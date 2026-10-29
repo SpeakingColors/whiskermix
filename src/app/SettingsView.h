@@ -67,7 +67,7 @@ public:
         refresh(); if (onChanged) onChanged();
     }
     juce::String label(int c) const {
-        if (mode == 2) { auto& b = mx.state().buses[size_t(c)]; return (b.controlRoom ? "CR " : "OUT ") + juce::String(c + 1); }
+        if (mode == 2) { auto& b = mx.state().buses[size_t(c)]; if (b.hwFirst < 0) return "Software"; if (b.hwFirst >= 32) return "PH"; return "ADAT " + juce::String(b.hwFirst + 1) + (b.stereo ? "/" + juce::String(b.hwFirst + 2) : juce::String()); }
         auto& ch = mx.state().channels[size_t(c)];
         if (ch.hwFirst < 0) return "In " + juce::String(c + 1);
         if (ch.playback && ch.hwFirst >= 32) return "PH";
@@ -136,6 +136,7 @@ public:
     }
     void rebuild() { table.rebuild(); rebuildDrops(); resized(); }
     void refresh() { table.refresh(); resized(); }
+    void showSection(int i) { gotoSection(i); }
     void syncSettings() { for (auto& c : cards) for (auto& r : c.rows) r->sync(); }
     void paint(juce::Graphics& g) override {
         g.fillAll(col::bg);
@@ -176,7 +177,7 @@ private:
             if (drop.getNumItems() > 0) drop.setSelectedId(juce::jlimit(0, drop.getNumItems() - 1, int(v + 0.5f)) + 1, juce::dontSendNotification);
         }
         void paint(juce::Graphics& g) override {
-            g.setColour(juce::Colour(0xffeceae4)); g.setFont(juce::Font(11.0f)); g.drawText(s.label, 0, 0, getWidth() * 60 / 100, getHeight(), juce::Justification::centredLeft, true);
+            g.setColour(juce::Colour(0xffeceae4)); g.setFont(juce::Font(11.0f)); g.drawText(s.label, 0, 0, s.kind == OptSpec::Toggle ? getWidth() - 30 : getWidth() * 60 / 100, getHeight(), juce::Justification::centredLeft, true);
             if (s.hint.isNotEmpty()) { g.setColour(s.kind == OptSpec::Note ? juce::Colour(0xffffd100) : juce::Colour(0xffb9b6ae)); g.setFont(juce::Font(10.0f)); g.drawText(s.hint, getLocalBounds().withTrimmedRight(s.kind == OptSpec::Toggle ? 30 : 0), juce::Justification::centredRight, true); }
         }
         void resized() override {
@@ -207,13 +208,16 @@ private:
                 auto& c = o->cards[size_t(ci)]; c.r = {col * (cw + gap), top, cw, 30 + int(c.rows.size()) * rowH + pad}; int yy = c.r.getY() + 30;
                 for (auto& r : c.rows) { r->setBounds(c.r.getX() + pad, yy, cw - 2 * pad, rowH); yy += rowH; }
                 return c.r.getBottom(); };
-            int b1 = 0; for (int i = 0; i < 3; ++i) b1 = juce::jmax(b1, place(i, i, y));
-            for (int i = 0; i < 3; ++i) o->cards[size_t(i)].r.setBottom(b1);
-            y = b1 + gap; y2 = y;
-            int b2 = 0; for (int i = 3; i < 6; ++i) b2 = juce::jmax(b2, place(i, i - 3, y));
-            for (int i = 3; i < 6; ++i) o->cards[size_t(i)].r.setBottom(b2);
-            y = b2 + gap; y3 = y;
-            auto& rc = o->cards[6]; rc.r = {0, y, w, 30 + int(rc.rows.size()) * rowH + pad}; int yy = y + 30;
+            const int n = int(o->cards.size()) - 1;   // the last card (Remote control) is full width
+            int ys[8] = {}, k = 0;
+            for (int i = 0; i < n; i += 3) {
+                ys[k++] = y; int bot = 0; const int cnt = juce::jmin(3, n - i);
+                for (int j = 0; j < cnt; ++j) bot = juce::jmax(bot, place(i + j, j, y));
+                for (int j = 0; j < cnt; ++j) o->cards[size_t(i + j)].r.setBottom(bot);
+                y = bot + gap;
+            }
+            y1 = ys[0]; y2 = k > 1 ? ys[1] : y1; y3 = y;
+            auto& rc = o->cards.back(); rc.r = {0, y, w, 30 + int(rc.rows.size()) * rowH + pad}; int yy = y + 30;
             for (auto& r : rc.rows) { r->setBounds(pad, yy, w - 2 * pad, rowH); yy += rowH; }
             totalH = rc.r.getBottom() + 8;
         }
@@ -244,19 +248,24 @@ private:
         addCard("Mixer", {D("Talkback input", "talkIn", 0, none), L("Talkback dim", "talkDim", -20, -60, 0, 1, " dB"), D("Listenback input", "listenIn", 0, none),
             L("Main out recall", "recall", -10, -60, 0, 1, " dB"), dim, D("External input", "extIn", 0, none),
             S("Solo mode", "soloMode", 0, {"Solo", "PFL (live)"}), T("Exclusive solo", "exSolo", false), T("2-row: inputs only on top", "twoRowTop", false)});
-        addCard("Level meters", {S("Clip after", "clip", 1, {"1", "3", "5"}, "Samples in a row before the clip light turns on"),
-            real(L("Peak hold", "peak", 2, 0, 10, 0.5f, " s", "How long meter peaks stay. 0 = off"), [&st] { return st.peakHoldSec; }, [&st](float v) { st.peakHoldSec = v; }),
-            T("RMS +3 dB", "rms3", true), real(T("Show compressor / auto level", "gr", true, "Shows the compressor gain reduction under a strip when its compressor is on"), [&st] { return st.showGrOnStrips ? 1.0f : 0.0f; }, [&st](float v) { st.showGrOnStrips = v > 0.5f; })});
-        addCard("Mixer views", {T("FX send follows highest submix", "fxHigh", true), T("FX send follows Main", "fxMain", false), T("Center pan when changing mono/stereo", "centerPan", true), T("Layout presets remember open strips", "presetStrips", false)});
-        addCard("Operation", {real(T("Double-click fader to reset", "dbl", true, "Double-click a fader or knob to put it back to its default"), [&st] { return st.doubleClickReset ? 1.0f : 0.0f; }, [&st](float v) { st.doubleClickReset = v > 0.5f; }),
-            T("Mouse wheel on knobs", "wheelKnobs", true), T("Lock interface (password)", "lockUi", false),
-            real(T("Save changes every minute", "auto", true, "Writes autosave.wmix in the app data folder"), [&st] { return st.autosave ? 1.0f : 0.0f; }, [&st](float v) { st.autosave = v > 0.5f; }),
-            real(T("Info bubbles on hover", "tips", true, "Show a short explanation when the mouse rests on a control"), [&st] { return st.tooltips ? 1.0f : 0.0f; }, [&st](float v) { st.tooltips = v > 0.5f; }),
-            S("Theme", "theme", 0, {"Dark", "Darker", "Light", "High contrast"})});
-        addCard("Snapshots and workspaces", {T("Load room EQ with snapshot", "snapEq", false), T("Load groups with snapshot", "snapGroups", false), T("Soften volume jumps on snapshot load", "snapSoft", true),
+        addCard("Level meters", {L("Full scale samples for OVR", "clipN", 3, 1, 10, 1, "", "Samples in a row at full scale before the clip light turns on"),
+            real(L("Peak hold time", "peak", 2, 0, 10, 0.5f, " s", "How long meter peaks stay. 0 = off"), [&st] { return st.peakHoldSec; }, [&st](float v) { st.peakHoldSec = v; }),
+            T("RMS +3 dB", "rms3", true),
+            real(T("Compressor/Expander meters", "gr", true, "Shows the compressor gain reduction under a strip when its compressor is on"), [&st] { return st.showGrOnStrips ? 1.0f : 0.0f; }, [&st](float v) { st.showGrOnStrips = v > 0.5f; }),
+            T("Auto Level meters", "autoLevelM", true), T("Include Gain setting", "dynGain", true)});
+        addCard("Mixer views", {T("FX send follows highest submix", "fxHigh", true), T("FX send follows Main Out mix", "fxMain", false), T("Center balance/pan when changing mono/stereo", "centerPan", true), T("Store channel open/closed in layout preset", "presetStrips", false)});
+        addCard("Operation", {real(T("Disable double-click fader actions", "noDbl", false, "Double-click on a fader or knob does not reset it"), [&st] { return st.doubleClickReset ? 0.0f : 1.0f; }, [&st](float v) { st.doubleClickReset = v < 0.5f; }),
+            T("Disable mouse wheel operation", "noWheel", false), T("Lock user interface (password)", "lockUi", false), T("Store settings for all users (restart)", "allUsers", false),
+            real(T("Save changes regularly (within 1 min)", "auto", true, "Writes autosave.wmix in the app data folder"), [&st] { return st.autosave ? 1.0f : 0.0f; }, [&st](float v) { st.autosave = v > 0.5f; }),
+            real(T("Info bubbles on hover", "tips", true, "Show a short explanation when the mouse rests on a control"), [&st] { return st.tooltips ? 1.0f : 0.0f; }, [&st](float v) { st.tooltips = v > 0.5f; })});
+        addCard("Snapshots and workspaces", {T("Load room EQs with snapshot", "snapEq", false), T("Load groups with snapshot", "snapGroups", false), T("Load record/play with snapshot", "snapRecPlay", false), T("Load old workspaces in old design", "snapOld", false),
+            T("Soften volume jumps on snapshot load", "snapSoft", true),
             real(T("Open the autosave at start", "onstart", true, "Come back to where you left off"), [&st] { return st.loadAutosaveOnStart ? 1.0f : 0.0f; }, [&st](float v) { st.loadAutosaveOnStart = v > 0.5f; })});
         OptSpec hw{OptSpec::Note, "Hardware mixer control", "hwNote"}; hw.hint = juce::String(juce::CharPointer_UTF8("needs capture \xC2\xB7 software mix active"));
         addCard("Devices", {D("Interface", "iface", 0, {"Digiface USB", "Other"}), S("Sample rate", "rate", 0, {"44.1", "48", "88.2", "96"}), S("Buffer (samples)", "buf", 5, {"32", "64", "128", "256", "512", "1024", "2048"}, "Same list as the RME driver: 32 to 2048 samples"), hw, S("Built-in FX run on", "fxOn", 0, {"Computer", "Interface DSP"})});
+        addCard("Graphics", {S("Brightness correction", "theme", 1, {"Normal", "Dark", "Light", "High contr."}), T("Highlight submix frame", "hiSubmix", false), T("Light theme", "lightTheme", false)});
+        addCard("Device handling", {T("Always init DSP devices with app settings", "initDsp", true), T("Count MADI channels per port", "madiPort", false), T("Disable ASIO direct monitoring", "noAsioDm", false),
+            T("Read back AUX devices on start", "auxRead", false), T("Reduce volume peaks on snapshot load", "reducePeaks", false)});
         OptSpec midi = T("MIDI controller 1", "rcMidi", false); midi.hint = "In: none  Out: none";
         OptSpec osc = T("OSC", "rcOsc", false); osc.hint = "port in 7001, out 9001";
         OptSpec fk = T("F-keys A / B / C speakers", "rcFkeys", true); fk.hint = "F10 F11 F12";

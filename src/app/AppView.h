@@ -92,6 +92,68 @@ public:
     bool canRedo() const { return undo.canRedo(); }
     void doSave() { save(); }
     void doLoad() { load(); }
+    std::function<void(int)> openPage;          // set by the frame: switch to a page (0 Mixer .. 4 Settings)
+    std::function<void(bool)> onAlwaysOnTop;    // set by the app window
+    // Options menu (the gear), like TotalMix FX: toggles, jumps to the settings sections, Reset Mix and Operational Mode.
+    void showOptionsMenu(juce::Component* anchor) {
+        auto& st = wm::mixer::settings(); juce::PopupMenu m, reset;
+        m.addItem(1, "Deactivate screensaver", true, st.getOpt("noSaver", 0) > 0.5f);
+        m.addItem(2, "Always on top", true, st.getOpt("alwaysTop", 0) > 0.5f);
+        m.addSeparator();
+        m.addItem(3, "Enable MIDI control", true, st.getOpt("rcMidi", 0) > 0.5f);
+        m.addItem(4, "Enable OSC control", true, st.getOpt("rcOsc", 0) > 0.5f);
+        m.addSeparator();
+        m.addItem(10, "Preferences..."); m.addItem(11, "Settings..."); m.addItem(12, "Channel layout..."); m.addItem(13, "Key commands and remote...");
+        static const char* rn[] = {"Straight playback with all to Main Out", "Straight playback", "Clear all submixes", nullptr, "Clear all channel effects", "Set output volumes", "Reset channel names", nullptr,
+                                   "Set all channels mono", "Set all channels stereo", "Set inputs mono / outputs stereo", nullptr, "Total reset"};
+        for (int i = 0; i < 13; ++i) { if (!rn[i]) reset.addSeparator(); else reset.addItem(100 + i, rn[i]); }
+        m.addSubMenu("Reset mix", reset);
+        m.addItem(20, "Operational mode...");
+        m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(anchor), [this, safe = juce::Component::SafePointer<AppView>(this)](int r) {
+            if (!safe || r <= 0) return;
+            auto& s = wm::mixer::settings();
+            auto go = [this](int sec) { if (openPage) openPage(4); settingsView.showSection(sec); };
+            if (r == 1) { bool v = s.getOpt("noSaver", 0) < 0.5f; s.setOpt("noSaver", v); juce::Desktop::getInstance().setScreenSaverEnabled(!v); savePrefs(); }
+            else if (r == 2) { bool v = s.getOpt("alwaysTop", 0) < 0.5f; s.setOpt("alwaysTop", v); if (onAlwaysOnTop) onAlwaysOnTop(v); savePrefs(); }
+            else if (r == 3) { s.setOpt("rcMidi", s.getOpt("rcMidi", 0) < 0.5f); settingsView.syncSettings(); savePrefs(); }
+            else if (r == 4) { s.setOpt("rcOsc", s.getOpt("rcOsc", 0) < 0.5f); settingsView.syncSettings(); savePrefs(); }
+            else if (r == 10) go(2); else if (r == 11) go(3); else if (r == 12) go(0); else if (r == 13) go(4);
+            else if (r >= 100 && r < 120) resetMix(r - 100);
+            else if (r == 20) operationalMode();
+        });
+    }
+    void operationalMode() {
+        const bool daw = wm::mixer::settings().getOpt("opMode", 0) > 0.5f;
+        juce::AlertWindow::showAsync(juce::MessageBoxOptions().withIconType(juce::MessageBoxIconType::QuestionIcon).withTitle("Operational mode")
+            .withMessage(juce::String("Full mode: mixer active, all routing options available.\nDAW mode: straight playback routing, no input mix.\n\nNow: ") + (daw ? "DAW mode" : "Full mode") + ". Stored for now; the mode does not change the mixer yet.")
+            .withButton("Full mode").withButton("DAW mode").withButton("Cancel"), [this](int r) {
+                if (r == 1 || r == 2) { wm::mixer::settings().setOpt("opMode", r == 2 ? 1.0f : 0.0f); savePrefs(); } });
+    }
+    // Reset mix actions (each one can be undone).
+    void resetMix(int what) {
+        auto before = current(); auto& st = mx.state(); const int nc = int(st.channels.size()), nb = int(st.buses.size());
+        auto splitAll = [this](bool toMono) {
+            for (int c = int(mx.state().channels.size()) - 1; c >= 0; --c) {
+                auto& ch = mx.state().channels[size_t(c)];
+                if (toMono && ch.stereoLinked) { if (mx.splitStereo(c)) rt.duplicateInput(c); }
+                else if (!toMono && !ch.stereoLinked && c + 1 < int(mx.state().channels.size()) && mx.joinStereo(c)) rt.eraseInput(c + 1);
+            } };
+        switch (what) {
+            case 0: { rt.clear(); const int mi = wm::mixer::crMainIndex(st); for (int c = 0; c < nc; ++c) if (st.channels[size_t(c)].playback && mi >= 0) rt.set(c, mi, 0.0f); break; }
+            case 1: { rt.clear(); for (int c = 0; c < nc; ++c) { auto& ch = st.channels[size_t(c)]; if (!ch.playback) continue;
+                        for (int b = 0; b < nb; ++b) if (st.buses[size_t(b)].hwFirst == ch.hwFirst) { rt.set(c, b, 0.0f); break; } } break; }
+            case 2: rt.clear(); break;
+            case 4: for (auto& ch : st.channels) { ch.fx = {}; ch.chain = {}; } break;
+            case 5: for (auto& b : st.buses) b.volumeDb = 0.0f; break;
+            case 6: for (int c = 0; c < nc; ++c) st.channels[size_t(c)].name = "In " + std::to_string(c + 1); break;
+            case 8: splitAll(true); break;
+            case 9: splitAll(false); break;
+            case 10: splitAll(true); for (auto& b : st.buses) b.stereo = true; break;
+            case 12: { auto built = wm::mixer::buildFromLayout(wm::mixer::studioLayout()); mx.state() = built.mixer.state(); rt = built.routing; break; }
+            default: return;
+        }
+        undo.push(before); last = sig(); eng.sync(); mixerView.refreshAll(); settingsView.rebuild(); routing.repaint(); reverb.refresh(); syncFx(); fxPage.repaint();
+    }
     void showAbout() {
         juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "WhiskerMix",
             "Studio hub: mixer for the RME Digiface USB, MIDI hub, Ferrofish Pulse 16 control. Free and open source. Digiface hardware mixer and Pulse 16 over USB MIDI; other interfaces are untested.");

@@ -24,7 +24,7 @@ public:
         auto mk = [this](MockButton& b, const juce::String& t, const char* tip, std::function<void()> f) { b.setButtonText(t); b.setTooltip(tip); b.onClick = std::move(f); addAndMakeVisible(b); };
         mk(sizeB, juce::CharPointer_UTF8("\xE2\xA4\xA1 100%"), "UI size: drag any corner or edge to resize (aspect ratio kept); click to reset to 100%", [this] { if (resetSize) resetSize(); });
         sizeB.fill = juce::Colours::transparentBlack; sizeB.edge = juce::Colour(0xff6a6f7a); sizeB.textCol = juce::Colour(0xffcfccc4); sizeB.radius = 15.0f;
-        mk(infoB, "i", "What this plugin does", [this] { app.showAbout(); }); mk(gearB, juce::CharPointer_UTF8("\xE2\x9A\x99"), "Settings: MIDI, I/O, controller maps, help", [this] { showPage(4); });
+        mk(infoB, "i", "What this plugin does", [this] { app.showAbout(); }); mk(gearB, juce::CharPointer_UTF8("\xE2\x9A\x99"), "Settings: MIDI, I/O, controller maps, help", [this] { app.showOptionsMenu(&gearB); });
         for (auto* b : {&infoB, &gearB}) { b->circle = true; b->fill = mock::btn; b->fontSize = 14.0f; b->bold = true; }
         mk(wsB, juce::CharPointer_UTF8("\xF0\x9F\x92\xBE Workspace: Studio main \xE2\x96\xBE"), "Pick a saved workspace (snapshot)", [this] { app.showSnapshotMenu(&wsB); });
         wsB.edge = mock::aqua; wsB.radius = 6.0f; wsB.fontSize = 12.0f;
@@ -36,6 +36,7 @@ public:
         for (auto* b : {&saveB, &loadB}) { b->fill = mock::btn; b->radius = 7.0f; b->bold = true; }
         mk(undoB, juce::CharPointer_UTF8("\xE2\x86\xB6"), "Undo", [this] { app.doUndo(); }); mk(redoB, juce::CharPointer_UTF8("\xE2\x86\xB7"), "Redo", [this] { app.doRedo(); });
         for (auto* b : {&undoB, &redoB}) b->fontSize = 14.0f;
+        app.openPage = [this](int p) { showPage(p); };
         showPage(0); refreshQuick(); startTimerHz(8);
     }
     void showPage(int i) { page = i; app.showPage(i); layoutPage(); for (int k = 0; k < tabsBtn.size(); ++k) tabsBtn[k]->setToggleState(k == i, juce::dontSendNotification); repaint(); }

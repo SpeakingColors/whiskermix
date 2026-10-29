@@ -92,6 +92,9 @@ public:
         view->onChannelAdded = [this](const std::string& n) { pw.addInput(n); };
 #endif
         window = std::make_unique<MainWindow>(view);
+        view->onAlwaysOnTop = [this](bool v) { if (window) window->setAlwaysOnTop(v); };
+        if (wm::mixer::settings().getOpt("alwaysTop", 0) > 0.5f) window->setAlwaysOnTop(true);
+        if (wm::mixer::settings().getOpt("noSaver", 0) > 0.5f) juce::Desktop::getInstance().setScreenSaverEnabled(false);
     }
     void shutdown() override {
 #ifdef WM_JUCE_AUDIO
