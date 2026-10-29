@@ -73,10 +73,46 @@ public:
         juce::MessageManager::callAsync([safe = juce::Component::SafePointer<AppView>(this)] { if (safe != nullptr) { safe->midi.rescan(); safe->loadAutosave(); } });
         startTimerHz(30);
     }
+    // Used by MockFrame (the mockup's frame): the old toolbar and tab bar are hidden, the frame drives them instead.
+    void setChromeless(bool c) {
+        chromeless = c; tabs.setTabBarDepth(c ? 0 : 40);
+        for (auto* b : {&undoB, &redoB, &addB, &storeB, &recallB, &saveB, &loadB}) b->setVisible(!c);
+        snapBox.setVisible(!c); dfLabel.setVisible(!c); resized(); repaint();
+    }
+    void showPage(int i) { static const int idx[5] = {0, 2, 4, 5, 6}; tabs.setCurrentTabIndex(idx[juce::jlimit(0, 4, i)]); }
+    void doUndo() { if (undo.canUndo()) apply(undo.undo(current())); }
+    void doRedo() { if (undo.canRedo()) apply(undo.redo(current())); }
+    bool canUndo() const { return undo.canUndo(); }
+    bool canRedo() const { return undo.canRedo(); }
+    void doSave() { save(); }
+    void doLoad() { load(); }
+    void showAbout() {
+        juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::InfoIcon, "WhiskerMix",
+            "Studio hub: mixer for the RME Digiface USB, MIDI hub, Ferrofish Pulse 16 control. Free and open source. Digiface hardware mixer and Pulse 16 over USB MIDI; other interfaces are untested.");
+    }
+    juce::String workspaceName() const { return wsName.isEmpty() ? juce::String("Studio main") : wsName; }
+    int currentSlot() const { return slot; }
+    // Quick slots 1..5 are snapshots called "Slot n": click recalls, shift-click stores the current mixer there.
+    void quickSlot(int i, bool store) {
+        juce::String n = "Slot " + juce::String(i + 1);
+        if (store) { snapBox.setText(n, juce::dontSendNotification); storeSnap(); slot = i; wsName = n; return; }
+        for (auto& nm : mx.snapshotNames()) if (juce::String(nm) == n) { recallSnap(nm); slot = i; wsName = n; return; }
+    }
+    void showSnapshotMenu(juce::Component* anchor) {
+        juce::PopupMenu m; int id = 1; auto names = mx.snapshotNames();
+        for (auto& nm : names) m.addItem(id++, juce::String(nm), true, juce::String(nm) == wsName);
+        if (!names.empty()) m.addSeparator();
+        m.addItem(10000, "Store current as new snapshot");
+        m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(anchor), [this, names](int r) {
+            if (r == 10000) { snapBox.setText("", juce::dontSendNotification); storeSnap(); }
+            else if (r > 0 && r <= int(names.size())) { recallSnap(names[size_t(r - 1)]); wsName = juce::String(names[size_t(r - 1)]); }
+        });
+    }
     std::function<void(const std::string&)> onChannelAdded;
     std::function<std::string()> digifaceStatus;   // shown at the right of the toolbar
     std::function<void()> onWorkspaceLoaded;        // the hardware mixer resends everything
     void paint(juce::Graphics& g) override {
+        if (chromeless) { g.fillAll(juce::Colour(0xff2a2c31)); return; }
         g.fillAll(col::bg);
         // cat head logo + title
         auto lg = juce::Rectangle<float>(10, 4, 30, 28);
@@ -89,6 +125,7 @@ public:
     }
     void resized() override {
         auto r = getLocalBounds();
+        if (chromeless) { tabs.setBounds(r); return; }
         auto bar = r.removeFromTop(38).reduced(4); bar.removeFromLeft(180);
         for (auto* b : {&undoB, &redoB, &addB}) b->setBounds(bar.removeFromLeft(86).reduced(2));
         bar.removeFromLeft(10); snapBox.setBounds(bar.removeFromLeft(150).reduced(2)); storeB.setBounds(bar.removeFromLeft(64).reduced(2)); recallB.setBounds(bar.removeFromLeft(72).reduced(2));
@@ -220,6 +257,7 @@ private:
     wm::mixer::MidiHub hub; MidiView midi; PulseView pulse; PulseHost pulseHost{pulse, pulseVp}; juce::Viewport pulseVp; SettingsView settingsView; std::unique_ptr<juce::TooltipWindow> tipWin; int ticks = 0;
     juce::TabbedComponent tabs{juce::TabbedButtonBar::TabsAtTop};
     juce::TextButton undoB, redoB, addB, storeB, recallB, saveB, loadB; juce::ComboBox snapBox; juce::Label dfLabel;
+    bool chromeless = false; int slot = -1; juce::String wsName;
     wm::mixer::WorkspaceUndo undo; wm::mixer::Workspace lastWs; std::string last;
     std::unique_ptr<juce::FileChooser> chooser;
 };

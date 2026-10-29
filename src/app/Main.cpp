@@ -11,18 +11,28 @@
 #include "../mixer/StateJson.h"
 #include "../mixer/Layout.h"
 #include "AppView.h"
+#include "MockFrame.h"
 #include "DigifaceLink.h"
 
 class MainWindow : public juce::DocumentWindow {
 public:
-    MainWindow(juce::Component* content) : DocumentWindow("WhiskerMix", juce::Colour(0xff1b1b1f), allButtons) {
+    // content = the app view; the window shows it inside the mockup frame (wood cheeks, logo, tabs), scaled with the aspect kept.
+    MainWindow(wmui::AppView* app) : DocumentWindow("WhiskerMix", wmui::mock::outer, allButtons) {
         setUsingNativeTitleBar(true);
-        setContentOwned(content, true);
+        auto* host = new wmui::ScaledHost(*app);
+        host->frame.resetSize = [this] { setContentComponentSize(wmui::mock::kW, wmui::mock::kH); };
+        owned.reset(app); setContentOwned(host, true);
         setResizable(true, true);
-        centreWithSize(1360, 860);
+        constrainer.setFixedAspectRatio(double(wmui::mock::kW) / wmui::mock::kH); constrainer.setMinimumSize(540, 466);
+        setConstrainer(&constrainer);
+        setContentComponentSize(wmui::mock::kW, wmui::mock::kH);
+        centreWithSize(getWidth(), getHeight());
         setVisible(true);
     }
+    ~MainWindow() override { clearContentComponent(); }
     void closeButtonPressed() override { juce::JUCEApplication::getInstance()->systemRequestedQuit(); }
+private:
+    juce::ComponentBoundsConstrainer constrainer; std::unique_ptr<wmui::AppView> owned;
 };
 
 class WhiskerMixApp : public juce::JUCEApplication {
