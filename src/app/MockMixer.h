@@ -347,7 +347,7 @@ public:
     void paint(juce::Graphics&) override {}
     void resized() override {
         auto r = getLocalBounds(); int sideW = 150; auto sb = r.removeFromRight(sideW); r.removeFromRight(8);
-        sidebar.setBounds(sb.withHeight(575)); layoutSidebar();
+        sidebar.setBounds(sb.withHeight(juce::jmax(575, getHeight()))); layoutSidebar();
         areaW = r.getWidth(); body.setSize(areaW, getHeight()); relayoutRows();
     }
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails& w) override { scrollBy(w.deltaY); }
@@ -472,12 +472,14 @@ private:
         muteAll.setBounds(40, 62, 22, 22); soloAll.setBounds(88, 62, 22, 22);
         modeSub.setBounds(14, 126, 58, 16); modeFree.setBounds(78, 126, 58, 16); meterPost.setBounds(14, 158, 58, 16); meterRms.setBounds(78, 158, 58, 16);
         showFxB.setBounds(14, 190, 58, 16); showTrimB.setBounds(78, 190, 58, 16); show2Row.setBounds(14, 210, 58, 16); showNamesB.setBounds(78, 210, 58, 16);
-        snaps.setBounds(10, 260, 130, 84); storeB.setBounds(6, 348, 138, 20);
-        crDim.setBounds(6, 398, 66, 18); crMono.setBounds(78, 398, 66, 18); dimKnob.setBounds(14, 422, 30, 30); spkB.setBounds(6, 456, 138, 18);
-        groupsB.setBounds(6, 484, 138, 18); presetsB.setBounds(6, 506, 138, 18); reverbB.setBounds(6, 528, 138, 18); remoteB.setBounds(6, 550, 138, 18);
+        const int o = juce::jmax(0, sidebar.getHeight() - 575);   // Store, control room and the menus sit at the bottom, beside the control room strips
+        sidebar.crOff = o;
+        snaps.setBounds(10, 260, 130, 84); storeB.setBounds(6, 348 + o, 138, 20);
+        crDim.setBounds(6, 398 + o, 66, 18); crMono.setBounds(78, 398 + o, 66, 18); dimKnob.setBounds(14, 422 + o, 30, 30); spkB.setBounds(6, 456 + o, 138, 18);
+        groupsB.setBounds(6, 484 + o, 138, 18); presetsB.setBounds(6, 506 + o, 138, 18); reverbB.setBounds(6, 528 + o, 138, 18); remoteB.setBounds(6, 550 + o, 138, 18);
     }
     struct Side : juce::Component {
-        bool showCr = true;
+        bool showCr = true; int crOff = 0;
         void paint(juce::Graphics& g) override {
             auto r = getLocalBounds().toFloat().reduced(0.5f); g.setColour(mx_::side); g.fillRoundedRectangle(r, 6.0f); g.setColour(juce::Colour(0xff4a4e57)); g.drawRoundedRectangle(r, 6.0f, 1.0f);
             auto bar = [&](int y, const char* t) { g.setColour(juce::Colour(0xff3308af)); g.fillRoundedRectangle(6.0f, float(y), 138.0f, 18.0f, 3.0f); g.setColour(juce::Colours::white); g.setFont(mx_::f(10.0f, true)); g.drawText(t, 12, y, 120, 18, juce::Justification::centredLeft, false); };
@@ -485,7 +487,7 @@ private:
             g.setColour(juce::Colours::white); g.setFont(mx_::f(7.0f, true));
             g.drawText("ROUTING MODE", 6, 114, 138, 10, juce::Justification::centred, false); g.drawText("LEVEL METERS", 6, 146, 138, 10, juce::Justification::centred, false); g.drawText("SHOW", 6, 178, 138, 10, juce::Justification::centred, false);
             bar(238, "Snapshots");
-            if (showCr) { bar(376, "Control room"); g.setColour(mx_::mute); g.setFont(mx_::f(8.0f)); g.drawText("Dim amount", 52, 430, 90, 10, juce::Justification::centredLeft, false); }
+            if (showCr) { bar(376 + crOff, "Control room"); g.setColour(mx_::mute); g.setFont(mx_::f(8.0f)); g.drawText("Dim amount", 52, 430 + crOff, 90, 10, juce::Justification::centredLeft, false); }
         }
     };
     struct SnapModel : juce::ListBoxModel {

@@ -256,7 +256,7 @@ private:
         addCard("Snapshots and workspaces", {T("Load room EQ with snapshot", "snapEq", false), T("Load groups with snapshot", "snapGroups", false), T("Soften volume jumps on snapshot load", "snapSoft", true),
             real(T("Open the autosave at start", "onstart", true, "Come back to where you left off"), [&st] { return st.loadAutosaveOnStart ? 1.0f : 0.0f; }, [&st](float v) { st.loadAutosaveOnStart = v > 0.5f; })});
         OptSpec hw{OptSpec::Note, "Hardware mixer control", "hwNote"}; hw.hint = juce::String(juce::CharPointer_UTF8("needs capture \xC2\xB7 software mix active"));
-        addCard("Devices", {D("Interface", "iface", 0, {"Digiface USB", "Other"}), S("Sample rate", "rate", 0, {"44.1", "48", "88.2", "96"}), S("Buffer", "buf", 1, {"64", "128", "256", "512"}), hw, S("Built-in FX run on", "fxOn", 0, {"Computer", "Interface DSP"})});
+        addCard("Devices", {D("Interface", "iface", 0, {"Digiface USB", "Other"}), S("Sample rate", "rate", 0, {"44.1", "48", "88.2", "96"}), S("Buffer (samples)", "buf", 5, {"32", "64", "128", "256", "512", "1024", "2048"}, "Same list as the RME driver: 32 to 2048 samples"), hw, S("Built-in FX run on", "fxOn", 0, {"Computer", "Interface DSP"})});
         OptSpec midi = T("MIDI controller 1", "rcMidi", false); midi.hint = "In: none  Out: none";
         OptSpec osc = T("OSC", "rcOsc", false); osc.hint = "port in 7001, out 9001";
         OptSpec fk = T("F-keys A / B / C speakers", "rcFkeys", true); fk.hint = "F10 F11 F12";
