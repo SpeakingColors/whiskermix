@@ -73,6 +73,24 @@ public:
         view->digifaceStatus = [this] { return digiface->status(); };
 #endif
 #ifdef WM_JUCE_AUDIO
+        // Audio interface choice (Settings > Devices): every device of every driver type, e.g. "Windows Audio: Digiface USB". Index 0 = system default, no input.
+        for (auto* t : adm.getAvailableDeviceTypes()) { t->scanForDevices(); auto outs = t->getDeviceNames(false), ins = t->getDeviceNames(true);
+            juce::StringArray all; all.addArray(outs); for (auto& n : ins) all.addIfNotAlreadyThere(n);
+            for (auto& n : all) devs.push_back({t->getTypeName(), n}); }
+        view->deviceList = [this] { juce::StringArray l; l.add("System default"); for (auto& d : devs) l.add(d.first + ": " + d.second); return l; };
+        view->applyAudio = [this] {
+            auto& st = wm::mixer::settings(); const int sel = int(st.getOpt("iface", 0) + 0.5f);
+            static const double rates[] = {44100, 48000, 88200, 96000}; static const int bufs[] = {32, 64, 128, 256, 512, 1024, 2048};
+            const double rate = rates[juce::jlimit(0, 3, int(st.getOpt("rate", 1) + 0.5f))]; const int buf = bufs[juce::jlimit(0, 6, int(st.getOpt("buf", 5) + 0.5f))];
+            const int key = sel * 100000 + int(rate) / 100 * 10 + int(buf); static int lastKey = -1; if (key == lastKey) return; lastKey = key;
+            if (sel <= 0 || sel > int(devs.size())) return;     // system default: leave what JUCE opened (output only)
+            auto& d = devs[size_t(sel - 1)]; adm.setCurrentAudioDeviceType(d.first, true);
+            juce::AudioDeviceManager::AudioDeviceSetup s; adm.getAudioDeviceSetup(s);
+            s.outputDeviceName = d.second; s.inputDeviceName = d.second; s.sampleRate = rate; s.bufferSize = buf;
+            s.useDefaultInputChannels = false; s.useDefaultOutputChannels = false; s.inputChannels.setRange(0, 64, true); s.outputChannels.setRange(0, 64, true);
+            auto err = adm.setAudioDeviceSetup(s, true);
+            if (err.isNotEmpty()) { s.inputDeviceName = {}; s.inputChannels.clear(); adm.setAudioDeviceSetup(s, true); }   // output-only devices
+        };
         view->audioDevices = [this] {
             std::vector<wmui::MockRoutingView::Dev> v;
             if (auto* t = adm.getCurrentDeviceTypeObject()) {
@@ -90,6 +108,9 @@ public:
         view->onWorkspaceLoaded = [this] { digiface->resend(); };
 #ifndef WM_JUCE_AUDIO
         view->onChannelAdded = [this](const std::string& n) { pw.addInput(n); };
+#endif
+#ifdef WM_JUCE_AUDIO
+        if (view->applyAudio) view->applyAudio();
 #endif
         window = std::make_unique<MainWindow>(view);
         view->onAlwaysOnTop = [this](bool v) { if (window) window->setAlwaysOnTop(v); };
@@ -109,7 +130,7 @@ private:
     std::unique_ptr<wm::mixer::RoutingMatrix> routing;
     std::unique_ptr<wm::engine::AudioEngine> engine;
 #ifdef WM_JUCE_AUDIO
-    juce::AudioDeviceManager adm;
+    juce::AudioDeviceManager adm; std::vector<std::pair<juce::String, juce::String>> devs;
     std::unique_ptr<JuceAudio> jaudio;
 #else
     wm::pw::PipeWireMixer pw;

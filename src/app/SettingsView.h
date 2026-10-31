@@ -117,6 +117,7 @@ class SettingsView : public juce::Component {
 public:
     std::function<void()> onChanged;           // channel layout changed
     std::function<void()> onSettingsChanged;   // preferences changed
+    std::function<juce::StringArray()> deviceList;   // audio interfaces the build can open (set by the app)
     SettingsView(wm::mixer::Mixer& m, wm::mixer::RoutingMatrix& r) : mx(m), table(m, r) {
         table.onChanged = [this] { if (onChanged) onChanged(); };
         vp.setViewedComponent(&inner, false); vp.setScrollBarsShown(true, false); addAndMakeVisible(vp);
@@ -184,7 +185,7 @@ private:
             auto r = getLocalBounds();
             if (s.kind == OptSpec::Toggle) tog.setBounds(r.removeFromRight(24).withSizeKeepingCentre(22, 22));
             if (s.kind == OptSpec::Slider) sld.setBounds(r.removeFromRight(juce::jmin(190, r.getWidth() * 55 / 100)));
-            if (s.kind == OptSpec::Drop) drop.setBounds(r.removeFromRight(juce::jmin(120, r.getWidth() / 2)).reduced(0, 1));
+            if (s.kind == OptSpec::Drop) drop.setBounds(r.removeFromRight(juce::jmin(s.key == "iface" ? 190 : 120, r.getWidth() * (s.key == "iface" ? 3 : 1) / 2 - (s.key == "iface" ? 20 : 0))).reduced(0, 1));
             if (s.kind == OptSpec::Seg) { int x = r.getRight(); for (int i = segs.size() - 1; i >= 0; --i) { int w = int(textWidth(juce::Font(10.0f, juce::Font::bold), s.opts[i])) + 18; x -= w; segs[i]->setBounds(x, 2, w, r.getHeight() - 4); } }
         }
     };
@@ -262,7 +263,7 @@ private:
             T("Soften volume jumps on snapshot load", "snapSoft", true),
             real(T("Open the autosave at start", "onstart", true, "Come back to where you left off"), [&st] { return st.loadAutosaveOnStart ? 1.0f : 0.0f; }, [&st](float v) { st.loadAutosaveOnStart = v > 0.5f; })});
         OptSpec hw{OptSpec::Note, "Hardware mixer control", "hwNote"}; hw.hint = juce::String(juce::CharPointer_UTF8("needs capture \xC2\xB7 software mix active"));
-        addCard("Devices", {D("Interface", "iface", 0, {"Digiface USB", "Other"}), S("Sample rate", "rate", 0, {"44.1", "48", "88.2", "96"}), S("Buffer (samples)", "buf", 5, {"32", "64", "128", "256", "512", "1024", "2048"}, "Same list as the RME driver: 32 to 2048 samples"), hw, S("Built-in FX run on", "fxOn", 0, {"Computer", "Interface DSP"})});
+        addCard("Devices", {D("Interface", "iface", 0, {"System default"}, "Pick the audio interface WhiskerMix opens (inputs included)"), S("Sample rate", "rate", 1, {"44.1", "48", "88.2", "96"}), S("Buffer (samples)", "buf", 5, {"32", "64", "128", "256", "512", "1024", "2048"}, "Same list as the RME driver: 32 to 2048 samples"), hw, S("Built-in FX run on", "fxOn", 0, {"Computer", "Interface DSP"})});
         addCard("Graphics", {S("Brightness correction", "theme", 1, {"Normal", "Dark", "Light", "High contr."}), T("Highlight submix frame", "hiSubmix", false), T("Light theme", "lightTheme", false)});
         addCard("Device handling", {T("Always init DSP devices with app settings", "initDsp", true), T("Count MADI channels per port", "madiPort", false), T("Disable ASIO direct monitoring", "noAsioDm", false),
             T("Read back AUX devices on start", "auxRead", false), T("Reduce volume peaks on snapshot load", "reducePeaks", false)});
@@ -274,7 +275,7 @@ private:
     }
     void rebuildDrops() {
         juce::StringArray in{"None"}; for (auto& c : mx.state().channels) if (!c.playback) in.add(juce::String(c.name));
-        for (auto& c : cards) for (auto& r : c.rows) if (r->s.kind == OptSpec::Drop && r->s.key != "iface") r->fill(in);
+        for (auto& c : cards) for (auto& r : c.rows) if (r->s.kind == OptSpec::Drop) { if (r->s.key == "iface") { if (deviceList) r->fill(deviceList()); } else r->fill(in); }
     }
     void exportSettings() {
         chooser = std::make_unique<juce::FileChooser>("Export settings", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("whiskermix-settings.json"), "*.json");

@@ -45,7 +45,8 @@ public:
         tabs.setTabBarDepth(40); tabs.setOutline(0);
         midi.page.onChanged = [this] { saveHub(); };
         settingsView.onChanged = [this] { mixerView.refreshAll(); routing.repaint(); };
-        settingsView.onSettingsChanged = [this] { applyPrefs(); mixerView.refreshAll(); savePrefs(); };
+        settingsView.deviceList = [this] { return deviceList ? deviceList() : juce::StringArray{"Digiface USB"}; };
+        settingsView.onSettingsChanged = [this] { if (applyAudio) applyAudio(); applyPrefs(); mixerView.refreshAll(); savePrefs(); };
         mixerView.onOpenFx = [this] { tabs.setCurrentTabIndex(1); };
         routing.onPrefs = [this] { savePrefs(); }; routing.devices = [this] { return audioDevices ? audioDevices() : std::vector<MockRoutingView::Dev>{}; };
         mixerView.addOutputPair = [this](int hw) { return addOutputPair(hw); };
@@ -178,6 +179,8 @@ public:
     }
     std::function<void(const std::string&)> onChannelAdded, onBusAdded;
     std::function<std::vector<MockRoutingView::Dev>()> audioDevices;   // Routing page device list (set by the app when the build can list devices)
+    std::function<void()> applyAudio;               // open the chosen audio interface / rate / buffer
+    std::function<juce::StringArray()> deviceList;  // audio interfaces found
     std::function<std::string()> digifaceStatus;   // shown at the right of the toolbar
     std::function<void()> onWorkspaceLoaded;        // the hardware mixer resends everything
     void paint(juce::Graphics& g) override {
