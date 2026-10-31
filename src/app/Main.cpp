@@ -53,7 +53,7 @@ public:
         for (auto& b : mixer->state().buses) buses.push_back(b.name);
 #ifdef WM_JUCE_AUDIO
         jaudio = std::make_unique<JuceAudio>(*engine);
-        adm.initialiseWithDefaultDevices(8, 4);
+        adm.initialiseWithDefaultDevices(0, 4); // 0 inputs: never open the microphone by default
         adm.addAudioCallback(jaudio.get());
 #else
         if (pw.start(*engine, ins, buses)) audio = std::thread([this] { pw.run(); });
