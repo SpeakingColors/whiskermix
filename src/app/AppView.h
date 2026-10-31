@@ -45,6 +45,7 @@ public:
         tabs.setTabBarDepth(40); tabs.setOutline(0);
         midi.page.onChanged = [this] { saveHub(); };
         settingsView.onChanged = [this] { mixerView.refreshAll(); routing.repaint(); };
+        settingsView.audioStatus = [this] { return audioStatus ? audioStatus() : juce::String(); };
         settingsView.deviceList = [this] { return deviceList ? deviceList() : juce::StringArray{"Digiface USB"}; };
         settingsView.onSettingsChanged = [this] { if (applyAudio) applyAudio(); applyPrefs(); mixerView.refreshAll(); savePrefs(); };
         mixerView.onOpenFx = [this] { tabs.setCurrentTabIndex(1); };
@@ -179,6 +180,7 @@ public:
     }
     std::function<void(const std::string&)> onChannelAdded, onBusAdded;
     std::function<std::vector<MockRoutingView::Dev>()> audioDevices;   // Routing page device list (set by the app when the build can list devices)
+    std::function<juce::String()> audioStatus;      // what the audio device really opened
     std::function<void()> applyAudio;               // open the chosen audio interface / rate / buffer
     std::function<juce::StringArray()> deviceList;  // audio interfaces found
     std::function<std::string()> digifaceStatus;   // shown at the right of the toolbar
@@ -258,6 +260,7 @@ private:
     void timerCallback() override {
         eng.sync();   // hand the latest edits to the audio thread
         if (++ticks >= 1800) { ticks = 0; if (wm::mixer::settings().autosave) autosave(); }
+        if (ticks % 15 == 0) settingsView.repaint();
         if (ticks % 15 == 0 && digifaceStatus) { auto t = juce::String(digifaceStatus()); if (t != dfLabel.getText()) dfLabel.setText(t, juce::dontSendNotification); }
         // Commit an undo step once the user lets go (no drag in progress) and the state differs from the last commit.
         if (juce::Desktop::getInstance().getMainMouseSource().isDragging()) return;

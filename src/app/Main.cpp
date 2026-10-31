@@ -78,6 +78,12 @@ public:
             juce::StringArray all; all.addArray(outs); for (auto& n : ins) all.addIfNotAlreadyThere(n);
             for (auto& n : all) devs.push_back({t->getTypeName(), n}); }
         view->deviceList = [this] { juce::StringArray l; l.add("System default"); for (auto& d : devs) l.add(d.first + ": " + d.second); return l; };
+        view->audioStatus = [this] {
+            auto* d = adm.getCurrentAudioDevice();
+            if (!d) return juce::String("no device open") + (audioErr.isNotEmpty() ? ": " + audioErr : juce::String());
+            return d->getName() + ": " + juce::String(d->getActiveInputChannels().countNumberOfSetBits()) + " in / " + juce::String(d->getActiveOutputChannels().countNumberOfSetBits()) + " out, "
+                + juce::String(d->getCurrentSampleRate() / 1000.0, 1) + " kHz, " + juce::String(d->getCurrentBufferSizeSamples()) + " smp" + (audioErr.isNotEmpty() ? " | " + audioErr : juce::String());
+        };
         view->applyAudio = [this] {
             auto& st = wm::mixer::settings(); const int sel = int(st.getOpt("iface", 0) + 0.5f);
             static const double rates[] = {44100, 48000, 88200, 96000}; static const int bufs[] = {32, 64, 128, 256, 512, 1024, 2048};
@@ -88,8 +94,8 @@ public:
             juce::AudioDeviceManager::AudioDeviceSetup s; adm.getAudioDeviceSetup(s);
             s.outputDeviceName = d.second; s.inputDeviceName = d.second; s.sampleRate = rate; s.bufferSize = buf;
             s.useDefaultInputChannels = false; s.useDefaultOutputChannels = false; s.inputChannels.setRange(0, 64, true); s.outputChannels.setRange(0, 64, true);
-            auto err = adm.setAudioDeviceSetup(s, true);
-            if (err.isNotEmpty()) { s.inputDeviceName = {}; s.inputChannels.clear(); adm.setAudioDeviceSetup(s, true); }   // output-only devices
+            audioErr = adm.setAudioDeviceSetup(s, true);
+            if (audioErr.isNotEmpty()) { const auto first = audioErr; s.inputDeviceName = {}; s.inputChannels.clear(); audioErr = adm.setAudioDeviceSetup(s, true); if (audioErr.isEmpty()) audioErr = "inputs refused: " + first; }   // output-only devices
         };
         view->audioDevices = [this] {
             std::vector<wmui::MockRoutingView::Dev> v;
@@ -130,7 +136,7 @@ private:
     std::unique_ptr<wm::mixer::RoutingMatrix> routing;
     std::unique_ptr<wm::engine::AudioEngine> engine;
 #ifdef WM_JUCE_AUDIO
-    juce::AudioDeviceManager adm; std::vector<std::pair<juce::String, juce::String>> devs;
+    juce::AudioDeviceManager adm; std::vector<std::pair<juce::String, juce::String>> devs; juce::String audioErr;
     std::unique_ptr<JuceAudio> jaudio;
 #else
     wm::pw::PipeWireMixer pw;

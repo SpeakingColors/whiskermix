@@ -117,6 +117,7 @@ class SettingsView : public juce::Component {
 public:
     std::function<void()> onChanged;           // channel layout changed
     std::function<void()> onSettingsChanged;   // preferences changed
+    std::function<juce::String()> audioStatus;       // what the audio device really opened (set by the app)
     std::function<juce::StringArray()> deviceList;   // audio interfaces the build can open (set by the app)
     SettingsView(wm::mixer::Mixer& m, wm::mixer::RoutingMatrix& r) : mx(m), table(m, r) {
         table.onChanged = [this] { if (onChanged) onChanged(); };
@@ -179,7 +180,8 @@ private:
         }
         void paint(juce::Graphics& g) override {
             g.setColour(juce::Colour(0xffeceae4)); g.setFont(juce::Font(11.0f)); g.drawText(s.label, 0, 0, s.kind == OptSpec::Toggle ? getWidth() - 30 : getWidth() * 60 / 100, getHeight(), juce::Justification::centredLeft, true);
-            if (s.hint.isNotEmpty()) { g.setColour(s.kind == OptSpec::Note ? juce::Colour(0xffffd100) : juce::Colour(0xffb9b6ae)); g.setFont(juce::Font(10.0f)); g.drawText(s.hint, getLocalBounds().withTrimmedRight(s.kind == OptSpec::Toggle ? 30 : 0), juce::Justification::centredRight, true); }
+            const juce::String hint = (s.key == "devStatus" && owner->audioStatus) ? owner->audioStatus() : s.hint;
+            if (hint.isNotEmpty()) { g.setColour(s.kind == OptSpec::Note ? juce::Colour(0xffffd100) : juce::Colour(0xffb9b6ae)); g.setFont(juce::Font(10.0f)); g.drawText(hint, getLocalBounds().withTrimmedRight(s.kind == OptSpec::Toggle ? 30 : 0), juce::Justification::centredRight, true); }
         }
         void resized() override {
             auto r = getLocalBounds();
@@ -263,7 +265,8 @@ private:
             T("Soften volume jumps on snapshot load", "snapSoft", true),
             real(T("Open the autosave at start", "onstart", true, "Come back to where you left off"), [&st] { return st.loadAutosaveOnStart ? 1.0f : 0.0f; }, [&st](float v) { st.loadAutosaveOnStart = v > 0.5f; })});
         OptSpec hw{OptSpec::Note, "Hardware mixer control", "hwNote"}; hw.hint = juce::String(juce::CharPointer_UTF8("needs capture \xC2\xB7 software mix active"));
-        addCard("Devices", {D("Interface", "iface", 0, {"System default"}, "Pick the audio interface WhiskerMix opens (inputs included)"), S("Sample rate", "rate", 1, {"44.1", "48", "88.2", "96"}), S("Buffer (samples)", "buf", 5, {"32", "64", "128", "256", "512", "1024", "2048"}, "Same list as the RME driver: 32 to 2048 samples"), hw, S("Built-in FX run on", "fxOn", 0, {"Computer", "Interface DSP"})});
+        OptSpec dv{OptSpec::Note, "Opened", "devStatus"};
+        addCard("Devices", {D("Interface", "iface", 0, {"System default"}, "Pick the audio interface WhiskerMix opens (inputs included)"), dv, S("Sample rate", "rate", 1, {"44.1", "48", "88.2", "96"}), S("Buffer (samples)", "buf", 5, {"32", "64", "128", "256", "512", "1024", "2048"}, "Same list as the RME driver: 32 to 2048 samples"), hw, S("Built-in FX run on", "fxOn", 0, {"Computer", "Interface DSP"})});
         addCard("Graphics", {S("Brightness correction", "theme", 1, {"Normal", "Dark", "Light", "High contr."}), T("Highlight submix frame", "hiSubmix", false), T("Light theme", "lightTheme", false)});
         addCard("Device handling", {T("Always init DSP devices with app settings", "initDsp", true), T("Count MADI channels per port", "madiPort", false), T("Disable ASIO direct monitoring", "noAsioDm", false),
             T("Read back AUX devices on start", "auxRead", false), T("Reduce volume peaks on snapshot load", "reducePeaks", false)});

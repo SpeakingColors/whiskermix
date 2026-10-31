@@ -1,4 +1,4 @@
-; WhiskerMix Windows installer + uninstaller (Inno Setup). Called as: ISCC /DName=WhiskerMix /DProduct=WhiskerMix /DVersion=0.5.2 packaging\windows.iss
+; WhiskerMix Windows installer + uninstaller (Inno Setup). Called as: ISCC /DName=WhiskerMix /DProduct=WhiskerMix /DVersion=0.5.3 packaging\windows.iss
 ; Files are staged in ..\stage by the release workflow. Works offline. The uninstaller removes everything it installed;
 ; your workspaces and snapshots (%APPDATA%\WhiskerMix) are kept unless you answer Yes when it asks.
 [Setup]
