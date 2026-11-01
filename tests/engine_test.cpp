@@ -182,6 +182,29 @@ int main() {
         for (int blk = 0; blk < 40; ++blk) { vf.write(size_t(chs[pc].hwFirst), tone.data(), 256); e4.processMapped(dp.data(), 16, vf, op.data(), 256); }
         CHECK(e4.inputPeakDb(int(pc)) > -8.0f);                                         // delivered: the strip meters it
     }
+    {   // stereo strip reads its own right channel (hwFirst + 1), not the next strip
+        auto b = mixer::buildFromLayout(mixer::studioLayout());
+        engine::AudioEngine e5(b.mixer, b.routing); e5.prepare(256);
+        auto& chs = b.mixer.state().channels; const int nb = int(b.mixer.state().buses.size());
+        for (auto& c : chs) c.gainDb = -120.0f;
+        b.mixer.state().buses[0].volumeDb = 0.0f; b.routing.set(0, 0, 0.0f);
+        chs[0].gainDb = 0.0f; chs[0].pan = 0.0f;                       // SYNTH, stereo on hardware 0/1; B1 (hardware 2) stays muted
+        CHECK(chs[0].stereoLinked && chs[0].hwFirst == 0);
+        e5.sync();
+        engine::VirtualFeed vf;
+        std::vector<std::vector<float>> dev(16, std::vector<float>(256, 0.0f)); for (auto& x : dev[0]) x = 0.5f;   // left only
+        std::vector<const float*> dp; for (auto& v : dev) dp.push_back(v.data());
+        std::vector<std::vector<float>> o5(size_t(nb) * 2, std::vector<float>(256)); std::vector<float*> op; for (auto& v : o5) op.push_back(v.data());
+        for (int blk = 0; blk < 60; ++blk) e5.processMapped(dp.data(), 16, vf, op.data(), 256);
+        CHECK(std::fabs(o5[0][255]) > 0.01f);                          // Main left has the left input
+        for (auto& x : dev[1]) x = 0.5f;                               // now right too
+        for (int blk = 0; blk < 60; ++blk) e5.processMapped(dp.data(), 16, vf, op.data(), 256);
+        CHECK(std::fabs(o5[1][255]) > 0.01f);                          // right output follows the right input
+        for (auto& x : dev[2]) x = 0.5f;                               // B1 input (muted strip) must not leak into SYNTH's right
+        for (auto& x : dev[1]) x = 0.0f;
+        for (int blk = 0; blk < 60; ++blk) e5.processMapped(dp.data(), 16, vf, op.data(), 256);
+        CHECK(std::fabs(o5[1][255]) < 0.005f);
+    }
     if (!fails) std::puts("engine_test: all passed");
     return fails ? 1 : 0;
 }

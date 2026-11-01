@@ -52,6 +52,8 @@ public:
         for (auto& r : rev_) r.prepare(sr_);
         for (auto& d : dly_) d.prepare(sr_);
         zero_.assign(size_t(maxFrames), 0.0f); feedBuf_.assign(kMaxChannels, std::vector<float>(size_t(maxFrames))); mapPtrs_.assign(kMaxChannels, nullptr);
+        fxR_.assign(kMaxChannels, ChannelFx{}); chainR_.assign(kMaxChannels, ChannelChain{}); for (auto& c : chainR_) c.prepare(sr_);
+        bufR_.assign(kMaxChannels, std::vector<float>(size_t(maxFrames))); feedBufR_.assign(kMaxChannels, std::vector<float>(size_t(maxFrames))); srcpR_.assign(kMaxChannels, nullptr); mapR_.assign(kMaxChannels, nullptr);
         nc_ = 0; nb_ = 0;
     }
     // UI thread: publish the current mixer state to the audio thread (cheap; call after edits, e.g. every 16 ms).
@@ -75,12 +77,20 @@ public:
                 if (ch.playback) { float* d = feedBuf_[c].data(); if (vf.read(size_t(ch.hwFirst), d, n)) p = d; }
                 else if (ch.hwFirst < nDev && dev[ch.hwFirst]) p = dev[ch.hwFirst];
             }
-            mapPtrs_[c] = p;
+            mapPtrs_[c] = p; mapR_[c] = nullptr;
+            if (ch.stereoLinked) {   // a stereo strip owns two hardware channels: the right one is hwFirst + 1 (not the next strip)
+                const float* q = zero_.data();
+                if (ch.hwFirst >= 0) {
+                    if (ch.playback) { float* d = feedBufR_[c].data(); if (vf.read(size_t(ch.hwFirst) + 1, d, n)) q = d; }
+                    else if (ch.hwFirst + 1 < nDev && dev[ch.hwFirst + 1]) q = dev[ch.hwFirst + 1];
+                }
+                mapR_[c] = q;
+            }
         }
-        for (size_t c = nc; c < kMaxChannels; ++c) mapPtrs_[c] = zero_.data();
-        processSnap(sn, mapPtrs_.data(), out, n);
+        for (size_t c = nc; c < kMaxChannels; ++c) { mapPtrs_[c] = zero_.data(); mapR_[c] = nullptr; }
+        processSnap(sn, mapPtrs_.data(), out, n, mapR_.data());
     }
-    void processSnap(const Snap& sn, const float* const* in, float* const* out, int n) {
+    void processSnap(const Snap& sn, const float* const* in, float* const* out, int n, const float* const* inR = nullptr) {   // inR[c] = right input of stereo strip c (null: the right one is channel c+1)
         const auto& st = sn.state; const auto& rt = sn.routing;
         size_t nc = st.channels.size(), nb = st.buses.size();
         if (nc > kMaxChannels || nb > kMaxBuses || rt.inputs() != int(nc) || rt.outputs() != int(nb) || n > maxFrames_) {
@@ -118,12 +128,32 @@ public:
                 for (int k = 0; k < kFxKinds; ++k) { fxIn_[c * kFxKinds + size_t(k)].store(0, std::memory_order_relaxed); fxOut_[c * kFxKinds + size_t(k)].store(0, std::memory_order_relaxed); }
                 gr_[c].store(0.0f, std::memory_order_relaxed);
             }
+            srcpR_[c] = nullptr;
+            if (inR && ch.stereoLinked && inR[c]) {   // right side of a stereo strip: same settings, own DSP state
+                srcpR_[c] = inR[c];
+                if (ch.fx.eqOn || ch.fx.compOn || chainOn) {
+                    float* b = bufR_[c].data(); float ip[kFxKinds], op[kFxKinds];
+                    if (ch.fx.eqOn || ch.fx.compOn) fxR_[c].process(ch.fx, sr_, inR[c], b, n); else std::memcpy(b, inR[c], size_t(n) * sizeof(float));
+                    chainR_[c].process(ch.chain, b, n, ip, op);
+                    srcpR_[c] = b;
+                } else { fxR_[c].process(ch.fx, sr_, inR[c], bufR_[c].data(), 0); chainR_[c].process(ch.chain, bufR_[c].data(), 0); }
+            }
         }
         // M/S FX on linked pairs (left channel's chain holds the setting)
-        for (size_t c = 0; c + 1 < nc; ++c) {
+        for (size_t c = 0; c < nc; ++c) {
             const auto& ch = st.channels[c];
             if (!ch.stereoLinked) continue;
             const auto& ms = ch.chain.s[kMidSide];
+            if (srcpR_[c]) {   // own right input: no pairing with the next strip
+                if (ms.on) {
+                    if (srcp_[c] == in[c]) { std::memcpy(buf_[c].data(), in[c], size_t(n) * sizeof(float)); srcp_[c] = buf_[c].data(); }
+                    if (srcpR_[c] == inR[c]) { std::memcpy(bufR_[c].data(), inR[c], size_t(n) * sizeof(float)); srcpR_[c] = bufR_[c].data(); }
+                    chain_[c].processMidSide(ms, buf_[c].data(), bufR_[c].data(), n);
+                    fxIn_[c * kFxKinds + kMidSide].store(1.0f, std::memory_order_relaxed); fxOut_[c * kFxKinds + kMidSide].store(1.0f, std::memory_order_relaxed);
+                } else chain_[c].processMidSide(ms, nullptr, nullptr, 0);
+                continue;
+            }
+            if (c + 1 >= nc) continue;
             if (ms.on) {
                 for (size_t q : {c, c + 1}) if (srcp_[q] == in[q]) { std::memcpy(buf_[q].data(), in[q], size_t(n) * sizeof(float)); srcp_[q] = buf_[q].data(); }
                 chain_[c].processMidSide(ms, buf_[c].data(), buf_[c + 1].data(), n);
@@ -137,14 +167,15 @@ public:
         for (size_t c = 0; c < nc; ++c) {
             if (skip) { skip = false; continue; }
             const auto& ch = st.channels[c];
-            const bool pair = ch.stereoLinked && c + 1 < nc;
-            skip = pair;
+            const bool ownR = srcpR_[c] != nullptr;
+            const bool pair = ch.stereoLinked && (ownR || c + 1 < nc);
+            skip = pair && !ownR;
             float gdb = (ch.mute || (anySolo && !ch.solo)) ? -120.0f : ch.gainDb;
             float lin = dbToLin(gdb);
             const float *sl = srcp_[c], *srr = nullptr;
             float pl, pr, sgnL = ch.phaseL ? -1.0f : 1.0f, sgnR = 1.0f;
             if (pair) {
-                const float *l0 = srcp_[c], *r0 = srcp_[c + 1];
+                const float *l0 = srcp_[c], *r0 = ownR ? srcpR_[c] : srcp_[c + 1];
                 const float w = std::max(0.0f, std::min(2.0f, ch.width));
                 for (int i = 0; i < n; ++i) {
                     float l = l0[i], r = r0[i];
@@ -230,7 +261,10 @@ private:
     std::vector<float> cur_, curSend_, wl_, wr_;
     std::vector<const float*> srcp_, mapPtrs_;
     std::vector<float> zero_; std::vector<std::vector<float>> feedBuf_;
-    std::vector<ChannelFx> fx_;
+    std::vector<ChannelFx> fx_, fxR_;
+    std::vector<const float*> srcpR_, mapR_;
+    std::vector<std::vector<float>> bufR_, feedBufR_;
+    std::vector<ChannelChain> chainR_;
     std::vector<ChannelChain> chain_;
     std::unique_ptr<std::atomic<float>[]> fxIn_, fxOut_;
     std::vector<ReverbUnit> rev_;
