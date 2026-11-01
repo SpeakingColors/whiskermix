@@ -15,6 +15,7 @@
 #include "Reverb.h"
 #include "Chain.h"
 #include "TripleBuffer.h"
+#include "VirtualFeed.h"
 
 namespace wm::engine {
 
@@ -23,6 +24,9 @@ constexpr size_t kMaxChannels = 64, kMaxBuses = 24;   // everything is prealloca
 inline float dbToLin(float db) { return db <= -119.0f ? 0.0f : std::pow(10.0f, db / 20.0f); }
 
 class AudioEngine {
+  private:
+    struct Snap { mixer::State state; mixer::RoutingMatrix routing; };
+  public:
 public:
     AudioEngine(mixer::Mixer& m, mixer::RoutingMatrix& r, float sampleRate = 48000.0f) : mx_(m), rt_(r) {
         setSampleRate(sampleRate);
@@ -47,6 +51,7 @@ public:
         rev_.assign(kMaxBuses, ReverbUnit{}); dly_.assign(kMaxBuses, ShimmerDelay{});
         for (auto& r : rev_) r.prepare(sr_);
         for (auto& d : dly_) d.prepare(sr_);
+        zero_.assign(size_t(maxFrames), 0.0f); feedBuf_.assign(kMaxChannels, std::vector<float>(size_t(maxFrames))); mapPtrs_.assign(kMaxChannels, nullptr);
         nc_ = 0; nb_ = 0;
     }
     // UI thread: publish the current mixer state to the audio thread (cheap; call after edits, e.g. every 16 ms).
@@ -57,8 +62,25 @@ public:
     }
 
     // Audio thread. in[c] = nframes of channel c. out[2*b], out[2*b+1] = bus b left and right.
-    void process(const float* const* in, float* const* out, int n) {
+    void process(const float* const* in, float* const* out, int n) { processSnap(snaps_.acquire(), in, out, n); }
+    // Same, but builds the channel inputs itself: hardware strips read device input hwFirst, software playback strips read
+    // virtual channel hwFirst from the feed, anything else is silence. dev[i] = nframes of device input i.
+    void processMapped(const float* const* dev, int nDev, VirtualFeed& vf, float* const* out, int n) {
         const Snap& sn = snaps_.acquire();
+        if (n > maxFrames_ || zero_.size() < size_t(n)) { processSnap(sn, mapPtrs_.data(), out, 0); return; }
+        const size_t nc = std::min(sn.state.channels.size(), kMaxChannels);
+        for (size_t c = 0; c < nc; ++c) {
+            const auto& ch = sn.state.channels[c]; const float* p = zero_.data();
+            if (ch.hwFirst >= 0) {
+                if (ch.playback) { float* d = feedBuf_[c].data(); if (vf.read(size_t(ch.hwFirst), d, n)) p = d; }
+                else if (ch.hwFirst < nDev && dev[ch.hwFirst]) p = dev[ch.hwFirst];
+            }
+            mapPtrs_[c] = p;
+        }
+        for (size_t c = nc; c < kMaxChannels; ++c) mapPtrs_[c] = zero_.data();
+        processSnap(sn, mapPtrs_.data(), out, n);
+    }
+    void processSnap(const Snap& sn, const float* const* in, float* const* out, int n) {
         const auto& st = sn.state; const auto& rt = sn.routing;
         size_t nc = st.channels.size(), nb = st.buses.size();
         if (nc > kMaxChannels || nb > kMaxBuses || rt.inputs() != int(nc) || rt.outputs() != int(nb) || n > maxFrames_) {
@@ -198,7 +220,6 @@ public:
     float outputPeakDb(int o) const { return toDb(peakOut_[size_t(o)].load(std::memory_order_relaxed)); }
 
 private:
-    struct Snap { mixer::State state; mixer::RoutingMatrix routing; };
     static float toDb(float v) { return v < 1e-6f ? -120.0f : 20.0f * std::log10(v); }
     mixer::Mixer& mx_;
     mixer::RoutingMatrix& rt_;
@@ -207,7 +228,8 @@ private:
     int maxFrames_ = 4096;
     size_t nc_ = 0, nb_ = 0;   // counts the DSP state is currently valid for (audio thread only)
     std::vector<float> cur_, curSend_, wl_, wr_;
-    std::vector<const float*> srcp_;
+    std::vector<const float*> srcp_, mapPtrs_;
+    std::vector<float> zero_; std::vector<std::vector<float>> feedBuf_;
     std::vector<ChannelFx> fx_;
     std::vector<ChannelChain> chain_;
     std::unique_ptr<std::atomic<float>[]> fxIn_, fxOut_;

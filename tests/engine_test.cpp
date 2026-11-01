@@ -166,6 +166,22 @@ int main() {
         run(e3, in3, out3);
         CHECK(std::fabs(out3[0][255]) > 0.001f || std::fabs(out3[1][255]) > 0.001f);
     }
+    {   // virtual playback feed: computer audio reaches the Computer strip, hardware strips read device inputs
+        auto b = mixer::buildFromLayout(mixer::studioLayout());
+        engine::AudioEngine e4(b.mixer, b.routing); e4.prepare(256); e4.sync();
+        const auto& chs = b.mixer.state().channels; size_t pc = chs.size();
+        for (size_t c = 0; c < chs.size(); ++c) if (chs[c].playback) { pc = c; break; }
+        CHECK(pc < chs.size());
+        const int nb = int(b.mixer.state().buses.size());
+        engine::VirtualFeed vf;
+        std::vector<float> tone(256, 0.5f); std::vector<std::vector<float>> o4(size_t(nb) * 2, std::vector<float>(256));
+        std::vector<float*> op; for (auto& v : o4) op.push_back(v.data());
+        std::vector<std::vector<float>> dev(16, std::vector<float>(256, 0.0f)); std::vector<const float*> dp; for (auto& v : dev) dp.push_back(v.data());
+        for (int blk = 0; blk < 40; ++blk) e4.processMapped(dp.data(), 16, vf, op.data(), 256);
+        CHECK(e4.inputPeakDb(int(pc)) < -100.0f);                                       // nothing delivered: silence
+        for (int blk = 0; blk < 40; ++blk) { vf.write(size_t(chs[pc].hwFirst), tone.data(), 256); e4.processMapped(dp.data(), 16, vf, op.data(), 256); }
+        CHECK(e4.inputPeakDb(int(pc)) > -8.0f);                                         // delivered: the strip meters it
+    }
     if (!fails) std::puts("engine_test: all passed");
     return fails ? 1 : 0;
 }

@@ -52,7 +52,7 @@ public:
         for (auto& c : mixer->state().channels) ins.push_back(c.name);
         for (auto& b : mixer->state().buses) buses.push_back(b.name);
 #ifdef WM_JUCE_AUDIO
-        jaudio = std::make_unique<JuceAudio>(*engine);
+        jaudio = std::make_unique<JuceAudio>(*engine, feed);
         adm.initialiseWithDefaultDevices(0, 4); // 0 inputs: never open the microphone by default
         adm.addAudioCallback(jaudio.get());
 #else
@@ -135,6 +135,7 @@ private:
     std::unique_ptr<wm::mixer::Mixer> mixer;
     std::unique_ptr<wm::mixer::RoutingMatrix> routing;
     std::unique_ptr<wm::engine::AudioEngine> engine;
+    wm::engine::VirtualFeed feed;   // computer audio delivered by a virtual device or loopback (Windows/macOS test builds)
 #ifdef WM_JUCE_AUDIO
     juce::AudioDeviceManager adm; std::vector<std::pair<juce::String, juce::String>> devs; juce::String audioErr;
     std::unique_ptr<JuceAudio> jaudio;

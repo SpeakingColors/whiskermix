@@ -6,7 +6,7 @@
 
 class JuceAudio : public juce::AudioIODeviceCallback {
 public:
-    explicit JuceAudio(wm::engine::AudioEngine& e) : eng(e) {}
+    explicit JuceAudio(wm::engine::AudioEngine& e, wm::engine::VirtualFeed& f) : eng(e), feed(f) {}
     void audioDeviceAboutToStart(juce::AudioIODevice* d) override {
         eng.setSampleRate(float(d->getCurrentSampleRate()));
         maxN = d->getCurrentBufferSizeSamples() * 2;          // headroom; all allocation happens here, not in the callback
@@ -21,12 +21,11 @@ public:
                                           int n, const juce::AudioIODeviceCallbackContext&) override {
         // Engine wants one input per channel and two outputs per bus; pad missing ones with silence.
         if (n > maxN) { for (int o = 0; o < nOut; ++o) if (out[o]) std::fill(out[o], out[o] + n, 0.0f); return; }
-        for (int i = 0; i < wantIn; ++i) ins[size_t(i)] = (i < nIn && in[i]) ? in[i] : zero.data();
-        eng.process(ins.data(), outs.data(), n);
+        eng.processMapped(in, nIn, feed, outs.data(), n);
         for (int o = 0; o < nOut; ++o) if (out[o]) for (int i = 0; i < n; ++i) out[o][i] = o < wantOut ? tmp[size_t(o)][size_t(i)] : 0.0f;
     }
     int wantIn = int(wm::engine::kMaxChannels), wantOut = int(wm::engine::kMaxBuses) * 2, maxN = 0;
 private:
-    wm::engine::AudioEngine& eng;
+    wm::engine::AudioEngine& eng; wm::engine::VirtualFeed& feed;
     std::vector<float> zero; std::vector<const float*> ins; std::vector<std::vector<float>> tmp; std::vector<float*> outs;
 };
