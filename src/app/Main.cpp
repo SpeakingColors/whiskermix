@@ -14,6 +14,7 @@
 #include "AppView.h"
 #include "MockFrame.h"
 #include "DigifaceLink.h"
+#include "WasapiLoopback.h"
 
 class MainWindow : public juce::DocumentWindow {
 public:
@@ -78,14 +79,31 @@ public:
             juce::StringArray all; all.addArray(outs); for (auto& n : ins) all.addIfNotAlreadyThere(n);
             for (auto& n : all) devs.push_back({t->getTypeName(), n}); }
         view->deviceList = [this] { juce::StringArray l; l.add("System default"); for (auto& d : devs) l.add(d.first + ": " + d.second); return l; };
+#ifdef _WIN32
+        loop = std::make_unique<WasapiLoopback>(feed);
+        view->loopList = [this] { juce::StringArray l; l.add("Windows default output"); for (auto& n : WasapiLoopback::deviceNames()) l.add(juce::String::fromUTF8(n.c_str())); return l; };
+#endif
+        view->loopStatus = [this]() -> juce::String {
+#ifdef _WIN32
+            return loop ? juce::String(loop->status()) : juce::String("loopback off");
+#else
+            return "Windows only (macOS: virtual device planned)";
+#endif
+        };
         view->audioStatus = [this] {
             auto* d = adm.getCurrentAudioDevice();
+#ifdef _WIN32
+            if (loop && d) loop->setTargetRate(d->getCurrentSampleRate());
+#endif
             if (!d) return juce::String("no device open") + (audioErr.isNotEmpty() ? ": " + audioErr : juce::String());
             return d->getName() + ": " + juce::String(d->getActiveInputChannels().countNumberOfSetBits()) + " in / " + juce::String(d->getActiveOutputChannels().countNumberOfSetBits()) + " out, "
                 + juce::String(d->getCurrentSampleRate() / 1000.0, 1) + " kHz, " + juce::String(d->getCurrentBufferSizeSamples()) + " smp" + (audioErr.isNotEmpty() ? " | " + audioErr : juce::String());
         };
         view->applyAudio = [this] {
             auto& st = wm::mixer::settings(); const int sel = int(st.getOpt("iface", 0) + 0.5f);
+#ifdef _WIN32
+            { const int ls = int(st.getOpt("loopSrc", 0) + 0.5f); static int lastLs = -2; if (loop && ls != lastLs) { lastLs = ls; loop->start(ls - 1); } }
+#endif
             static const double rates[] = {44100, 48000, 88200, 96000}; static const int bufs[] = {32, 64, 128, 256, 512, 1024, 2048};
             const double rate = rates[juce::jlimit(0, 3, int(st.getOpt("rate", 1) + 0.5f))]; const int buf = bufs[juce::jlimit(0, 6, int(st.getOpt("buf", 5) + 0.5f))];
             const int key = sel * 100000 + int(rate) / 100 * 10 + int(buf); static int lastKey = -1; if (key == lastKey) return; lastKey = key;
@@ -135,7 +153,11 @@ private:
     std::unique_ptr<wm::mixer::Mixer> mixer;
     std::unique_ptr<wm::mixer::RoutingMatrix> routing;
     std::unique_ptr<wm::engine::AudioEngine> engine;
-    wm::engine::VirtualFeed feed;   // computer audio delivered by a virtual device or loopback (Windows/macOS test builds)
+    wm::engine::VirtualFeed feed;
+#ifdef _WIN32
+    std::unique_ptr<WasapiLoopback> loop;
+#endif
+       // computer audio delivered by a virtual device or loopback (Windows/macOS test builds)
 #ifdef WM_JUCE_AUDIO
     juce::AudioDeviceManager adm; std::vector<std::pair<juce::String, juce::String>> devs; juce::String audioErr;
     std::unique_ptr<JuceAudio> jaudio;

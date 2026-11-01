@@ -46,6 +46,8 @@ public:
         midi.page.onChanged = [this] { saveHub(); };
         settingsView.onChanged = [this] { mixerView.refreshAll(); routing.repaint(); };
         settingsView.audioStatus = [this] { return audioStatus ? audioStatus() : juce::String(); };
+        settingsView.loopStatus = [this] { return loopStatus ? loopStatus() : juce::String(); };
+        settingsView.loopList = [this] { return loopList ? loopList() : juce::StringArray{"Windows default output"}; };
         settingsView.deviceList = [this] { return deviceList ? deviceList() : juce::StringArray{"Digiface USB"}; };
         settingsView.onSettingsChanged = [this] { if (applyAudio) applyAudio(); applyPrefs(); mixerView.refreshAll(); savePrefs(); };
         mixerView.onOpenFx = [this] { tabs.setCurrentTabIndex(1); };
@@ -183,6 +185,8 @@ public:
     std::function<juce::String()> audioStatus;      // what the audio device really opened
     std::function<void()> applyAudio;               // open the chosen audio interface / rate / buffer
     std::function<juce::StringArray()> deviceList;  // audio interfaces found
+    std::function<juce::StringArray()> loopList;    // outputs that can be captured as computer audio
+    std::function<juce::String()> loopStatus;
     std::function<std::string()> digifaceStatus;   // shown at the right of the toolbar
     std::function<void()> onWorkspaceLoaded;        // the hardware mixer resends everything
     void paint(juce::Graphics& g) override {
