@@ -1,15 +1,18 @@
 name: build
 on: [push, pull_request]
+permissions:
+  contents: read
+
 jobs:
   core-tests:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: sh tests/run.sh
   linux-app:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build g++ pkg-config libpipewire-0.3-dev libusb-1.0-0-dev libasound2-dev \
@@ -29,7 +32,7 @@ jobs:
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: git clone --depth 1 --branch 8.0.16-security https://github.com/juce-framework/JUCE.git third_party/JUCE
       - shell: bash
         run: |
@@ -41,7 +44,7 @@ jobs:
   plugins-linux:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build g++ pkg-config libasound2-dev libx11-dev libxinerama-dev libxext-dev \
@@ -54,7 +57,7 @@ jobs:
       - if: failure()
         shell: bash
         run: grep -E "error|Error|CMake Error" build.log | head -15 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: shimmer-plugins-linux
           path: |
@@ -72,7 +75,7 @@ jobs:
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - if: matrix.name == 'linux'
         run: |
           sudo apt-get update
@@ -89,7 +92,7 @@ jobs:
         run: grep -E "error|Error" build.log | head -15 | while IFS= read -r l; do echo "::error::${l:0:400}"; done
       - shell: bash
         run: tools/package.sh ${{ matrix.name }} build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: WhiskerMix-${{ matrix.name }}
           path: dist/WhiskerMix-${{ matrix.name }}.zip
