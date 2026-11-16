@@ -3,7 +3,9 @@
 
 namespace wm::digiface {
 namespace {
-constexpr uint16_t kVendor = 0x2A39, kProduct = 0x3FA0;
+// 0x3F8C: the id the Linux kernel quirk matches (kernel patch, Sept 2024). 0x3FA0: the id in the owner's captures.
+// Which one a given unit shows is not explained by any document: both are tried (untested on hardware).
+constexpr uint16_t kVendor = 0x2A39, kProducts[] = {0x3F8C, 0x3FA0};
 constexpr uint8_t kBulkOutEp = 0x0B;
 constexpr uint8_t kRequestTypeVendorOut = 0x40;
 constexpr uint8_t kRequestMixer = 0x15;
@@ -21,7 +23,8 @@ bool LibusbTransport::open(std::string* error) {
         return false;
     };
     if (libusb_init(&ctx_) != 0) return fail("libusb init failed");
-    handle_ = libusb_open_device_with_vid_pid(ctx_, kVendor, kProduct);
+    handle_ = nullptr;
+    for (uint16_t pid : kProducts) { handle_ = libusb_open_device_with_vid_pid(ctx_, kVendor, pid); if (handle_) break; }
     if (!handle_) return fail("Digiface USB not found (or no permission: check the udev rule)");
 
     // Find the interface that owns the bulk OUT endpoint.

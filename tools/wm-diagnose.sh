@@ -1,6 +1,6 @@
 #!/bin/sh
 # Prints what the system knows about the Digiface so names and ports can be checked.
-echo "== USB"; lsusb -d 2a39:3fa0 2>/dev/null || echo "Digiface not seen by lsusb"
+echo "== USB"; (lsusb -d 2a39:3fa0; lsusb -d 2a39:3f8c) 2>/dev/null || echo "Digiface not seen by lsusb"
 echo "== ALSA"; aplay -l 2>/dev/null | grep -i -A2 digiface
 echo "== PipeWire nodes"; pw-cli ls Node 2>/dev/null | grep -i -B3 -A12 digiface
 echo "== PipeWire ports"; pw-link -io 2>/dev/null | grep -i digiface

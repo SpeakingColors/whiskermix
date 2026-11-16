@@ -12,7 +12,7 @@ class LibusbTransport : public Transport {
 public:
     LibusbTransport() = default;
     ~LibusbTransport() override;
-    // Opens the first Digiface USB (2a39:3fa0). Does NOT detach the kernel audio driver:
+    // Opens the first Digiface USB (2a39:3f8c or 3fa0). Does NOT detach the kernel audio driver:
     // if the bulk interface is busy, bulk writes fail with a clear message and audio keeps running.
     bool open(std::string* error = nullptr);
     void close();
