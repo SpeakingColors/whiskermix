@@ -185,9 +185,9 @@ public:
         g.drawText("In port", labX, inE.getY(), 80, 24, juce::Justification::centredLeft); g.drawText("Out port", labX2, outE.getY(), 80, 24, juce::Justification::centredLeft);
         g.drawText("Clock", labX, clockB[0].getY(), 80, 24, juce::Justification::centredLeft); g.drawText("Log shows", labX2, pcT.getY(), 80, 24, juce::Justification::centredLeft);
         g.drawText("Colour", labX2, sw.getY(), 80, 24, juce::Justification::centredLeft); g.drawText("MIDI channel", labX2, singleB.getY(), 90, 24, juce::Justification::centredLeft);
-        g.drawText("Keeps the last 5000 messages. Clock shows one line per beat. Nothing is sent anywhere automatically.", logCard.getX() + 130, logCard.getY() + 8, logCard.getWidth() - 140, 16, juce::Justification::centredRight);
+        g.drawText("Keeps the last 5000 messages. Clock shows one line per beat.", logCard.getX() + 130, logCard.getY() + 8, logCard.getWidth() - 140, 16, juce::Justification::centredRight);
         g.drawText("Recall by Program Change on channel 16", snapCard.getRight() - 331, snapCard.getY() + 12, 320, 18, juce::Justification::centredRight);
-        g.drawText("Plain report for any support desk: system, audio settings, devices, last MIDI log lines. You review everything first; nothing is sent automatically.", repCard.getX() + 11, repCard.getY() + 36, repCard.getWidth() - 22, 14, juce::Justification::centredLeft);
+        g.drawText("Plain report for any support desk: system, audio settings, devices, last MIDI log lines. You review everything first.", repCard.getX() + 11, repCard.getY() + 36, repCard.getWidth() - 22, 14, juce::Justification::centredLeft);
     }
     void resized() override {
         auto r = getLocalBounds();

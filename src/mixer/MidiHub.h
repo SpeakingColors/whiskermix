@@ -98,7 +98,7 @@ public:
         return s;
     }
 
-    // Anonymised report. Nothing is sent anywhere; the user reviews the text first.
+    // Anonymised report text; the user reviews and copies it.
     std::string debugReport(const ReportOptions& o, const std::string& appVersion, const std::string& audioInfo, const std::string& crash) const {
         std::ostringstream r;
         r << "WhiskerMix debug report\nversion: " << appVersion << "\n\ndevices: " << devs_.size() << "\n";

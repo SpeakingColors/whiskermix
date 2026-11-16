@@ -15,6 +15,8 @@
 - **Names** (`src/names/`): one list of channel names generates a WirePlumber rule so the device and its channels carry the same names in system sound settings, patchbays and DAWs. Experimental: run `tools/wm-diagnose.sh` to check the real node names and how each app shows them.
 - **Pulse 16** (`src/backends/pulse16/`): a pure C++ SysEx codec and a session model (connect handshake, live state, setters) behind a small `Transport` interface. The protocol was reverse engineered from RemoteFish captures: see `docs/PULSE16-PROTOCOL.md`. Tests: `tests/pulse16_test.cpp`. `src/app/PulseLink.h` (MIDI ports) and `src/app/PulseView.h` (the page) sit on top; the page is built from the same session, never from the screen of the unit.
 
+- **Routing rules** (`src/routing/AdatRouting.h`): ADAT channel counts per sample rate, clock master plan, pw-link commands and unavailable-strip check. Pure C++, tested in `tests/routing_test.cpp`; see `docs/ROUTING.md`.
+
 Tests: `g++ -std=c++17 tests/digiface_codec_test.cpp -o /tmp/t1 && /tmp/t1` and the same for `tests/names_test.cpp`.
 
 ## Fallback if the matrix protocol cannot be learned

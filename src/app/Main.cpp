@@ -104,8 +104,8 @@ public:
 #ifdef _WIN32
             { const int ls = int(st.getOpt("loopSrc", 0) + 0.5f); static int lastLs = -2; if (loop && ls != lastLs) { lastLs = ls; loop->start(ls - 1); } }
 #endif
-            static const double rates[] = {44100, 48000, 88200, 96000}; static const int bufs[] = {32, 64, 128, 256, 512, 1024, 2048};
-            const double rate = rates[juce::jlimit(0, 3, int(st.getOpt("rate", 1) + 0.5f))]; const int buf = bufs[juce::jlimit(0, 6, int(st.getOpt("buf", 5) + 0.5f))];
+            static const double rates[] = {44100, 48000, 88200, 96000, 176400, 192000}; static const int bufs[] = {32, 64, 128, 256, 512, 1024, 2048};
+            const double rate = rates[juce::jlimit(0, 5, int(st.getOpt("rate", 1) + 0.5f))]; const int buf = bufs[juce::jlimit(0, 6, int(st.getOpt("buf", 5) + 0.5f))];
             const int key = sel * 100000 + int(rate) / 100 * 10 + int(buf); static int lastKey = -1; if (key == lastKey) return; lastKey = key;
             if (sel <= 0 || sel > int(devs.size())) return;     // system default: leave what JUCE opened (output only)
             auto& d = devs[size_t(sel - 1)]; adm.setCurrentAudioDeviceType(d.first, true);

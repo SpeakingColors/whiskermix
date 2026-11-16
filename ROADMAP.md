@@ -16,6 +16,8 @@ Standalone studio hub: TotalMix-style mixer for the RME Digiface USB, MIDI hub, 
 - [x] Per-channel FX chain in the engine (Reverb, Echo, Chorus, Phaser, Flanger, M/S, MB Comp, Limiter, Purr Trio, Opto) with Off = bypass, tested; FX panel in the real window (first version, needs a look on screen)
 - [ ] Tune the FX by ear against the mockup (reverb size, opto release, MB comp crossovers), oversampling above 2x for Purr Trio
 - [x] Routing matrix page and MIDI hub page (live log, filters, named snapshots, anonymised debug report)
+- [x] ADAT routing rules for Digiface + Pulse (channel counts per rate, clock plan, pw-link commands), tested in code; not yet wired to the units, untested on hardware (docs/ROUTING.md)
+- [ ] Send the clock plan to the Pulse and follow rate changes; confirm the channel counts with tools/wm-hw-routing.sh on the real units
 - [ ] Aggregation, MIDI-over-MADI or Dante
 - [x] Pulse 16 over DIN MIDI: SysEx codec, session and page (clock, sample rate, headphones, levels, routing, presets 1-6, brightness, key click). Built from RemoteFish captures, compiled and rendered headless; not yet tested on real hardware
 - [x] Pulse 16 backend: unit id learned from the probe, connection watchdog and meter polling, front panel echoes, backup and restore file, apply-state

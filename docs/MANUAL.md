@@ -47,8 +47,8 @@ Channel layout (names, icons, colours, stereo, hide), mixer preferences, devices
 ## Window
 Fixed size, resizable from any corner or edge keeping the aspect ratio. Click a wood cheek or the size button to go back to 100%.
 
-## Privacy and updates
-Offline only. No telemetry, no update checks. The Settings page has a button that opens the GitHub page where new versions are listed.
+## Updates
+The Settings page has a button that opens the GitHub page where new versions are listed.
 
 ## Support
 Free and open source (AGPL-3.0). Issues and pull requests on GitHub. If it helps your music, a coffee on Ko-fi (studio87) keeps it coming.

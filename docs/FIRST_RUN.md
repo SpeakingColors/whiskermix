@@ -3,6 +3,7 @@
 2. `cmake -B build -DWM_BUILD_APP=ON && cmake --build build` (needs pipewire and libusb dev headers; easiest inside a toolbox/distrobox)
 3. Start the app: a node called "WhiskerMix" appears in `pw-link -io`
 4. `sh tools/wm-diagnose.sh` for the Digiface and naming checks
+5. `sh tools/wm-hw-routing.sh` prints the real ALSA channel counts per sample rate and the PipeWire port names; compare with docs/ROUTING.md
 Expect small compile fixes in `src/pipewire` and `src/app`: they were written without headers to compile against.
 
 # Windows or macOS (UI and mixing test, no Digiface USB control, no PipeWire)

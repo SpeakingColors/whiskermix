@@ -164,6 +164,7 @@ inline bool fromJson(const std::string& s, State& st, RoutingMatrix& rt) {
     in = std::atoi(v.c_str());
     if (!detail::field(s, r, re, "out", v)) return false;
     out = std::atoi(v.c_str());
+    if (in < 0 || out < 0 || in > 256 || out > 256) return false;   // corrupt file: keep the current routing, never allocate a huge matrix
     size_t gs = s.find("\"g\":[", r), ge = s.find(']', gs);
     if (gs == std::string::npos || ge == std::string::npos) return false;
     RoutingMatrix n(in, out);

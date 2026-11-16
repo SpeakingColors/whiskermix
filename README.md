@@ -23,6 +23,7 @@ Releases carry one zip with a folder per system (linux, windows, macos), each wi
 - [Manual](docs/MANUAL.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Digiface USB protocol notes](docs/DIGIFACE-PROTOCOL.md) and [Pulse 16 protocol notes](docs/PULSE16-PROTOCOL.md): what is decoded, what is still missing, and which captures would help
+- [Routing, clock and sample rates for Digiface + Pulse on ADAT](docs/ROUTING.md)
 - [Interactive mockups](docs/README.md)
 - [Roadmap](ROADMAP.md)
 
